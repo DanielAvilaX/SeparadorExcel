@@ -1,54 +1,53 @@
 body {
-    font-family: Arial, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    background-color: #f4f4f4;
-  }
-  
-  .container {
-    background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    width: 400px;
-  }
-  
-  h1 {
-    font-size: 20px;
-    text-align: center;
-  }
-  
-  input[type="file"],
-  input[type="text"],
-  button {
-    display: block;
-    width: 100%;
-    padding: 10px;
-    margin-top: 10px;
-    border-radius: 5px;
-    box-sizing: border-box;
-  }
-  
-  input[type="text"] {
-    border: 1px solid #ccc;
-  }
-  
-  #columnsContainer {
-    display: flex;
-    flex-direction: column;
-    margin: 10px 0;
-  }
-  
-  button {
-    background: #007BFF;
-    color: white;
-    border: none;
-    cursor: pointer;
-  }
-  
-  button:hover {
-    background: #0056b3;
-  }
-  
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: url('Fondo.jpg') no-repeat center center/cover;
+}
+
+.container {
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  width: 400px;
+}
+
+h1 {
+  font-size: 20px;
+  text-align: center;
+}
+
+input[type="file"],
+input[type="text"],
+button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 5px;
+  box-sizing: border-box;
+}
+
+input[type="text"] {
+  border: 1px solid #ccc;
+}
+
+#columnsContainer {
+  display: flex;
+  flex-direction: column;
+  margin: 10px 0;
+}
+
+button {
+  background: #007BFF;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #0056b3;
+}
