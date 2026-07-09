@@ -11,7 +11,7 @@ import { listProviders } from '../lib/providers'
 export default function ProcesarView() {
   const [typeKey, setTypeKey] = useState('PACOM')
   const [parsed, setParsed] = useState(null)
-  const [fileName, setFileName] = useState('')
+  const [file, setFile] = useState(null)
   const [prefix, setPrefix] = useState('')
   const [selectedCols, setSelectedCols] = useState([])
   const [busy, setBusy] = useState(false)
@@ -51,10 +51,13 @@ export default function ProcesarView() {
   }, [parsed, dbIndex])
 
   function selectType(key) {
-    setTypeKey(key); setParsed(null); setFileName(''); setSelectedCols([])
+    setTypeKey(key); setParsed(null); setFile(null); setSelectedCols([])
   }
-  function onParsed(p, name) {
-    setParsed(p); setFileName(name); setSelectedCols(p.columns)
+  function onParsed(p, f) {
+    setParsed(p); setFile(f); setSelectedCols(p.columns)
+  }
+  function clearFile() {
+    setParsed(null); setFile(null); setSelectedCols([])
   }
   function toggleCol(c) {
     setSelectedCols((cols) => (cols.includes(c) ? cols.filter((x) => x !== c) : [...cols, c]))
@@ -95,7 +98,7 @@ export default function ProcesarView() {
           <span className="pill-type">Tipo: {type.label}</span>
         </div>
 
-        <Uploader type={type} fileName={fileName} onParsed={onParsed} />
+        <Uploader type={type} file={file} onParsed={onParsed} onClear={clearFile} />
 
         {parsed && (
           <>

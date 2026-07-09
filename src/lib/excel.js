@@ -14,10 +14,32 @@ function pickSheetName(workbook, type) {
   return names[0]
 }
 
+// Parsea a partir de un ArrayBuffer/Uint8Array ya leído (permite mostrar progreso de lectura aparte).
+export function parseBuffer(buf, type) {
+  const data = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf
+  const workbook = XLSX.read(data, { type: 'array' })
+  const sheetName = pickSheetName(workbook, type)
+  const sheet = workbook.Sheets[sheetName]
+
+  const headerMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false })
+  const columns = (headerMatrix[0] || []).map((c) => (c == null ? '' : String(c)))
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
+
+  const providerColumn = type.providerColumn
+  const providerColExists = columns.includes(providerColumn)
+
+  const providers = providerColExists
+    ? [...new Set(rows.map((r) => (r[providerColumn] || '').toString().trim()).filter(Boolean))].sort()
+    : []
+
+  return { sheetName, columns, rows, providerColumn, providerColExists, providers }
+}
+
 // Lee el archivo y devuelve columnas, filas y la lista de proveedores encontrados.
 export async function parseFile(file, type) {
   const buf = await file.arrayBuffer()
-  const workbook = XLSX.read(buf, { type: 'array' })
+  const workbook = XLSX.read(new Uint8Array(buf), { type: 'array' })
   const sheetName = pickSheetName(workbook, type)
   const sheet = workbook.Sheets[sheetName]
 
@@ -118,6 +140,13 @@ export async function generateZip({ rows, columns, providerColumn, prefix = '', 
 
   const blob = await zip.generateAsync({ type: 'blob' })
   return { blob, count }
+}
+
+export function formatBytes(bytes) {
+  if (!bytes && bytes !== 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
 export function downloadBlob(blob, filename) {
