@@ -3,6 +3,7 @@ import TopBar from './components/TopBar'
 import Nav from './components/Nav'
 import Login from './components/Login'
 import ToastHost from './components/ToastHost'
+import ConfirmHost from './components/ConfirmHost'
 import Spinner from './components/Spinner'
 import ProcesarView from './views/ProcesarView'
 import ProveedoresView from './views/ProveedoresView'
@@ -68,6 +69,7 @@ export default function App() {
       </div>
 
       <ToastHost />
+      <ConfirmHost />
     </>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Spinner from '../components/Spinner'
 import { toast } from '../lib/toast'
+import { confirmDialog } from '../lib/confirm'
 import { isConfigured } from '../lib/supabase'
 import { listCc, addCc, deleteCc, isEmail } from '../lib/providers'
 
@@ -30,7 +31,12 @@ export default function CcView() {
   }
 
   async function remove(item) {
-    if (!confirm(`¿Quitar ${item.email} de la copia?`)) return
+    const ok = await confirmDialog({
+      title: 'Quitar de la copia',
+      message: `¿Quitar ${item.email} de la lista de copia?`,
+      confirmText: 'Quitar', danger: true,
+    })
+    if (!ok) return
     try { await deleteCc(item.id); toast.success('Correo quitado.'); await load() }
     catch (e) { console.error(e); toast.error(e.message) }
   }

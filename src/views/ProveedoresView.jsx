@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import ExcelJS from 'exceljs'
 import Spinner from '../components/Spinner'
 import { toast } from '../lib/toast'
+import { confirmDialog } from '../lib/confirm'
 import { isConfigured } from '../lib/supabase'
 import {
   listProviders, addProvider, updateProvider, deleteProvider,
@@ -60,7 +61,12 @@ export default function ProveedoresView() {
   }
 
   async function remove(p) {
-    if (!confirm(`¿Eliminar "${p.nombre}"?`)) return
+    const ok = await confirmDialog({
+      title: 'Eliminar proveedor',
+      message: `¿Seguro que quieres eliminar "${p.nombre}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar', danger: true,
+    })
+    if (!ok) return
     try { await deleteProvider(p.id); toast.success('Proveedor eliminado.'); await load() }
     catch (e) { console.error(e); toast.error(e.message || 'Error al eliminar.') }
   }
