@@ -31,22 +31,24 @@ La `anon key` de Supabase es pública por diseño; la seguridad la dan las polí
 4. Agregar las Environment Variables del `.env.example`.
 5. Deploy. Cada `git push` a `main` re-despliega solo.
 
-## Estado actual (Fase 1)
-- ✅ Selector de tipo: **PACOM**, **Rotación por canales**, **Descuentos** (próximamente).
-- ✅ Configuración por tipo (hoja + columna de proveedor correctas por cada uno).
-- ✅ Lectura del Excel, detección de la columna de proveedor, selección de columnas.
-- ✅ Separación por proveedor → ZIP con un `.xlsx` por proveedor (encabezado verde, bordes, ancho automático).
-- ⏳ Siguiente: base de proveedores (Supabase), login, pantalla de revisión con cruce contra la base, y envío de correo.
+## Estado actual
+- ✅ **3 tipos**: PACOM, Rotación por canales y Descuentos (detección automática de la fila de encabezado).
+- ✅ Separación por proveedor → ZIP con un `.xlsx` por proveedor. Descuentos genera un **formato de 2 hojas** (CONFIRMACION DESCUENTO + DEPURACION con total).
+- ✅ **Base de proveedores** en Supabase (CRUD + carga masiva + CC global + plantilla de correo).
+- ✅ **Login** (Supabase Auth) y **pantalla de revisión** (cruce contra la base).
+- ✅ UI glass + clay, tema claro/oscuro, animaciones (carga, rebote por pestaña, toasts, modal de confirmación).
+- 🔒 **Envío de correo** (Microsoft Graph) — pendiente de la prueba de consentimiento de Microsoft.
 
 ## Estructura
 ```
 src/
   main.jsx
   App.jsx
-  components/   TopBar, TypeSelector, Uploader
-  lib/          fileTypes.js (config por tipo)  ·  excel.js (lectura + separación + zip)
+  components/   TopBar, Nav, TypeSelector, Uploader, Login, Spinner, ToastHost, ConfirmHost
+  views/        ProcesarView, ProveedoresView, CcView, PlantillaView
+  lib/          fileTypes.js (config por tipo) · excel.js (lectura + separación + zip) · supabase, providers, template, toast, confirm
   styles/       theme.css (glass + clay Cruz Verde)
-legacy/         app original (HTML/JS/CSS) — referencia
-samples/        archivos de ejemplo (PACOM, Rotación)
-mockup.html     mockup de estilo standalone
+supabase/       schema.sql · rls-authenticated.sql
 ```
+
+> Nota: los archivos Excel de datos (`.xlsx`) están en `.gitignore` — no se suben al repo por privacidad.

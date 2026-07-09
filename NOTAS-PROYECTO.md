@@ -110,7 +110,13 @@ antes de construir toda la capa de correo.
 - Función serverless en Vercel: OAuth con Microsoft + `sendMail` con adjunto.
 - Plantilla editable, CC global, envío por lote con confirmación.
 
-**Fase 6 — Descuentos** — GATED por el archivo de muestra.
+**Fase 6 — Descuentos** ✅ HECHA
+- [x] Input: 1 hoja con todos los proveedores (columna PROVEEDOR, encabezado en fila 2).
+- [x] Detección automática de la fila de encabezado (sirve para cualquier tipo).
+- [x] Salida por proveedor = 2 hojas replicando el FORMATO:
+      CONFIRMACION DESCUENTO (formulario en blanco) + DEPURACION (fila de total de
+      VR INVENTARIO + encabezado + filas del proveedor; se omite la columna 'negociador').
+- Validado: 3.306 filas → 147 proveedores → 147 archivos de 2 hojas.
 
 ---
 

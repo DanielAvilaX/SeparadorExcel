@@ -27,10 +27,19 @@ export const FILE_TYPES = [
     key: 'DESCUENTOS',
     label: 'Descuentos',
     icon: 'D',
-    description: 'Hoja DEPURACION. Divide por columna PROVEEDOR.',
+    description: 'Una hoja con todos los proveedores. Salida: 2 hojas por proveedor.',
     providerColumn: 'PROVEEDOR',
     sheetHints: ['DEPURACION', 'CONFIRMACION DESCUENTO'],
     enabled: true,
+    // Salida especial de 2 hojas replicando el FORMATO DESCUENTO.
+    output: {
+      mode: 'descuentos',
+      totalColumn: 'VR INVENTARIO',
+      depuracionSheet: 'DEPURACION',
+      depuracionColumns: ['Articulo', 'Descripcion', 'MUNDO', 'MACROCATEGORIA', 'PROVEEDOR', 'DCTO SOLICITADO', 'VR INVENTARIO', 'NOVEDAD'],
+      confirmacionSheet: 'CONFIRMACION DESCUENTO',
+      confirmacionColumns: ['CODIGO ORACLE', 'DESCRIPCION', 'PROVEEDOR', 'FECHA INICIAL', 'FECHA HASTA EVACUAR INVENTARIO', '%DESCUENTO SOLICITADO DEPURACION'],
+    },
   },
 ]
 

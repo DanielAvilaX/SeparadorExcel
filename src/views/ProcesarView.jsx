@@ -61,7 +61,7 @@ export default function ProcesarView({ state, setState }) {
     setBusy(true)
     try {
       const { blob, count } = await generateZip({
-        rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn, prefix,
+        rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn, prefix, type,
       })
       downloadBlob(blob, `${type.key}_DOCUMENTOS_SEPARADOS.zip`)
       toast.success(`ZIP generado · ${count} archivo${count === 1 ? '' : 's'}.`)
@@ -116,21 +116,31 @@ export default function ProcesarView({ state, setState }) {
             )}
 
             <div className="spacer" />
-            <div className="field">
-              <label>Columnas a incluir en cada archivo</label>
-              <div className="chips" style={{ maxHeight: 'none' }}>
-                {parsed.columns.map((c) => (
-                  <button key={c} type="button"
-                    className={'chip ' + (selectedCols.includes(c) ? 'g' : 'w')}
-                    onClick={() => toggleCol(c)}>
-                    {selectedCols.includes(c) ? '✓ ' : '＋ '}{c}
-                  </button>
-                ))}
+            {type.output ? (
+              <div className="field">
+                <label>Formato de salida</label>
+                <p className="hint" style={{ marginTop: 0 }}>
+                  {type.label} genera un formato fijo de <b>2 hojas por proveedor</b>
+                  (CONFIRMACION DESCUENTO + DEPURACION con total), así que no hay selección de columnas.
+                </p>
               </div>
-              <div className="hint">
-                <button className="toggle" type="button" onClick={toggleAll}>Marcar / desmarcar todas</button>
+            ) : (
+              <div className="field">
+                <label>Columnas a incluir en cada archivo</label>
+                <div className="chips" style={{ maxHeight: 'none' }}>
+                  {parsed.columns.map((c) => (
+                    <button key={c} type="button"
+                      className={'chip ' + (selectedCols.includes(c) ? 'g' : 'w')}
+                      onClick={() => toggleCol(c)}>
+                      {selectedCols.includes(c) ? '✓ ' : '＋ '}{c}
+                    </button>
+                  ))}
+                </div>
+                <div className="hint">
+                  <button className="toggle" type="button" onClick={toggleAll}>Marcar / desmarcar todas</button>
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>

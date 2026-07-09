@@ -5,3 +5,7 @@ dist
 *.log
 .DS_Store
 .vercel
+
+# Datos reales / archivos de trabajo (no van al repo)
+*.xlsx
+*.xls

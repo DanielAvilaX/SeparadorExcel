@@ -88,51 +88,100 @@ function groupByProvider(rows, providerColumn) {
 
 const THIN = { style: 'thin', color: { argb: 'FFBFD8C8' } }
 
+// Encabezado verde Cruz Verde + negrita + centrado
+function styleHeaderRow(row) {
+  row.height = 20
+  row.eachCell((cell) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00A651' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+    cell.border = { top: THIN, right: THIN, bottom: THIN, left: THIN }
+  })
+}
+
+function bordersFrom(ws, startRow) {
+  for (let r = startRow; r <= ws.rowCount; r++) {
+    ws.getRow(r).eachCell({ includeEmpty: true }, (cell) => {
+      cell.border = { top: THIN, right: THIN, bottom: THIN, left: THIN }
+    })
+  }
+}
+
+function autoWidth(ws, columns, dataRows) {
+  columns.forEach((name, i) => {
+    let max = (name || '').length
+    dataRows.forEach((r) => {
+      const v = (r[name] ?? '').toString()
+      if (v.length > max) max = v.length
+    })
+    ws.getColumn(i + 1).width = Math.min(Math.max(max + 2, 10), 60)
+  })
+}
+
+function toNumber(v) {
+  const n = Number(String(v ?? '').replace(/[^0-9.-]/g, ''))
+  return isNaN(n) ? 0 : n
+}
+
+function money(n) {
+  return '$ ' + Math.round(n).toLocaleString('en-US')
+}
+
+// Salida estándar (1 hoja con las columnas seleccionadas) — PACOM / Rotación.
 async function buildProviderWorkbook(providerRows, columns) {
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Datos')
-
   ws.columns = columns.map((c) => ({ header: c, key: c }))
-
   providerRows.forEach((r) => {
     const obj = {}
     columns.forEach((c) => { obj[c] = r[c] ?? '' })
     ws.addRow(obj)
   })
+  styleHeaderRow(ws.getRow(1))
+  bordersFrom(ws, 2)
+  autoWidth(ws, columns, providerRows)
+  return wb
+}
 
-  // Encabezado verde Cruz Verde + negrita + centrado
-  const header = ws.getRow(1)
-  header.height = 20
-  header.eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00A651' } }
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
-    cell.alignment = { horizontal: 'center', vertical: 'middle' }
-    cell.border = { top: THIN, right: THIN, bottom: THIN, left: THIN }
+// Salida Descuentos: 2 hojas (CONFIRMACION DESCUENTO en blanco + DEPURACION con total, encabezado y filas).
+async function buildDescuentosWorkbook(providerRows, output) {
+  const wb = new ExcelJS.Workbook()
+
+  // Hoja 1: formulario de confirmación (solo encabezados)
+  const c = wb.addWorksheet(output.confirmacionSheet)
+  c.addRow(output.confirmacionColumns)
+  styleHeaderRow(c.getRow(1))
+  output.confirmacionColumns.forEach((name, i) => {
+    c.getColumn(i + 1).width = Math.max((name || '').length + 2, 16)
   })
 
-  // Bordes en el resto de celdas
-  for (let r = 2; r <= ws.rowCount; r++) {
-    ws.getRow(r).eachCell({ includeEmpty: true }, (cell) => {
-      cell.border = { top: THIN, right: THIN, bottom: THIN, left: THIN }
-    })
+  // Hoja 2: depuración (fila de total + encabezado + filas del proveedor)
+  const d = wb.addWorksheet(output.depuracionSheet)
+  const cols = output.depuracionColumns
+  const totalIdx = cols.indexOf(output.totalColumn)
+
+  const total = providerRows.reduce((s, r) => s + toNumber(r[output.totalColumn]), 0)
+  const totalRow = new Array(cols.length).fill('')
+  if (totalIdx >= 0) totalRow[totalIdx] = money(total)
+  const tr = d.addRow(totalRow)
+  if (totalIdx >= 0) {
+    const cell = tr.getCell(totalIdx + 1)
+    cell.font = { bold: true }
+    cell.alignment = { horizontal: 'right' }
   }
 
-  // Ancho automático por columna
-  ws.columns.forEach((col, i) => {
-    const name = columns[i] || ''
-    let max = name.length
-    providerRows.forEach((r) => {
-      const v = (r[name] ?? '').toString()
-      if (v.length > max) max = v.length
-    })
-    col.width = Math.min(Math.max(max + 2, 10), 60)
-  })
+  d.addRow(cols) // encabezado en la fila 2
+  providerRows.forEach((r) => d.addRow(cols.map((col) => r[col] ?? '')))
+
+  styleHeaderRow(d.getRow(2))
+  bordersFrom(d, 2)
+  autoWidth(d, cols, providerRows)
 
   return wb
 }
 
-// Devuelve un Blob (ZIP) y un resumen. onlyProviders opcional: set/array de nombres a incluir.
-export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null }) {
+// Devuelve un Blob (ZIP) y un resumen. `type` decide el formato de salida.
+export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null }) {
   const groups = groupByProvider(rows, providerColumn)
   const filter = onlyProviders ? new Set(onlyProviders) : null
 
@@ -141,7 +190,9 @@ export async function generateZip({ rows, columns, providerColumn, prefix = '', 
 
   for (const [provider, providerRows] of groups) {
     if (filter && !filter.has(provider)) continue
-    const wb = await buildProviderWorkbook(providerRows, columns)
+    const wb = type?.output?.mode === 'descuentos'
+      ? await buildDescuentosWorkbook(providerRows, type.output)
+      : await buildProviderWorkbook(providerRows, columns)
     const buffer = await wb.xlsx.writeBuffer()
     zip.file(`${prefix}${sanitize(provider)}.xlsx`, buffer)
     count++
