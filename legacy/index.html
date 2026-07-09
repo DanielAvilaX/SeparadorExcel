@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Separador de Excel Personalizado</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Separador de Excel Personalizado</h1>
+    <input type="file" id="fileInput" accept=".xlsx, .xls">
+
+    <label for="filePrefix">Prefijo para el nombre de archivo (opcional):</label>
+    <input type="text" id="filePrefix" placeholder="Ej: Reporte_">
+
+    <div id="columnsContainer"></div>
+    <button id="selectAllBtn" onclick="toggleSelectAll()">Marcar/Desmarcar Todas</button>
+    <button id="generateBtn" onclick="generateFiles()">Generar Archivos</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

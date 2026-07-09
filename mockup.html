@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Separador Cruz Verde — Mockup</title>
+<style>
+  :root {
+    /* ---- Cruz Verde palette (aprox — ajustable al hex exacto de marca) ---- */
+    --cv-green:      #00A651;   /* verde corporativo */
+    --cv-green-deep: #00713A;
+    --cv-lime:       #7ED957;
+    --cv-mint:       #C8ECD4;
+
+    --ink:        #0E2419;
+    --ink-soft:   #3B5348;
+    --ink-faint:  #6B8378;
+
+    --bg-0:       #EDF2EF;
+    --bg-1:       #F8FBF9;
+    --panel-glass: rgba(255,255,255,0.72);
+    --panel-glass-brd: rgba(255,255,255,0.9);
+    --clay:       #FFFFFF;
+    --clay-hi:    rgba(255,255,255,1);
+    --clay-lo:    rgba(20,70,45,0.11);
+    --chip-good-bg: rgba(0,166,81,0.12);
+    --chip-good-ink:#0A6B39;
+    --chip-warn-bg: rgba(214,158,0,0.14);
+    --chip-warn-ink:#8A6300;
+    --warn: #D69E00;
+
+    --shadow-glass: 0 18px 50px rgba(0,70,35,0.14);
+    --r-lg: 26px;
+    --r-md: 18px;
+    --r-sm: 12px;
+
+    --font: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink:        #E9F5EC;
+      --ink-soft:   #AFC8BA;
+      --ink-faint:  #7D998A;
+      --bg-0:       #071711;
+      --bg-1:       #0C241A;
+      --panel-glass: rgba(18,40,29,0.50);
+      --panel-glass-brd: rgba(120,220,160,0.22);
+      --clay:       #12271C;
+      --clay-hi:    rgba(120,230,165,0.10);
+      --clay-lo:    rgba(0,0,0,0.55);
+      --cv-green:   #2ED47A;
+      --chip-good-bg: rgba(46,212,122,0.14);
+      --chip-good-ink:#7CF0AF;
+      --chip-warn-bg: rgba(230,180,40,0.16);
+      --chip-warn-ink:#F2CE6B;
+      --shadow-glass: 0 20px 60px rgba(0,0,0,0.55);
+    }
+  }
+  :root[data-theme="light"] {
+    --ink:#0E2419; --ink-soft:#3B5348; --ink-faint:#6B8378;
+    --bg-0:#EDF2EF; --bg-1:#F8FBF9;
+    --panel-glass:rgba(255,255,255,0.72); --panel-glass-brd:rgba(255,255,255,0.9);
+    --clay:#FFFFFF; --clay-hi:rgba(255,255,255,1); --clay-lo:rgba(20,70,45,0.11);
+    --cv-green:#00A651; --chip-good-bg:rgba(0,166,81,0.12); --chip-good-ink:#0A6B39;
+    --chip-warn-bg:rgba(214,158,0,0.14); --chip-warn-ink:#8A6300;
+    --shadow-glass:0 18px 50px rgba(0,70,35,0.14);
+  }
+  :root[data-theme="dark"] {
+    --ink:#E9F5EC; --ink-soft:#AFC8BA; --ink-faint:#7D998A;
+    --bg-0:#071711; --bg-1:#0C241A;
+    --panel-glass:rgba(18,40,29,0.50); --panel-glass-brd:rgba(120,220,160,0.22);
+    --clay:#12271C; --clay-hi:rgba(120,230,165,0.10); --clay-lo:rgba(0,0,0,0.55);
+    --cv-green:#2ED47A; --chip-good-bg:rgba(46,212,122,0.14); --chip-good-ink:#7CF0AF;
+    --chip-warn-bg:rgba(230,180,40,0.16); --chip-warn-ink:#F2CE6B;
+    --shadow-glass:0 20px 60px rgba(0,0,0,0.55);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    color: var(--ink);
+    background: var(--bg-0);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .atmos { position: fixed; inset: 0; z-index: -1; overflow: hidden; }
+  .atmos span { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.16; }
+  .atmos .b1 { width: 420px; height: 420px; background: var(--cv-green); top: -160px; left: -120px; }
+  .atmos .b2 { width: 340px; height: 340px; background: var(--cv-lime); bottom: -170px; right: -90px; opacity: 0.14; }
+  .atmos .b3 { width: 260px; height: 260px; background: var(--cv-green-deep); top: 46%; right: 20%; opacity: 0.08; }
+  @media (prefers-reduced-motion: no-preference) {
+    .atmos span { animation: drift 18s ease-in-out infinite alternate; }
+    .atmos .b2 { animation-delay: -6s; } .atmos .b3 { animation-delay: -11s; }
+    @keyframes drift { to { transform: translate3d(40px, -30px, 0) scale(1.08); } }
+  }
+
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 30px 22px 70px; }
+
+  header.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 30px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 13px; }
+  .brand .mark {
+    width: 46px; height: 46px; border-radius: 15px; flex: none;
+    background: linear-gradient(145deg, var(--cv-lime), var(--cv-green) 60%, var(--cv-green-deep));
+    box-shadow: 6px 6px 14px var(--clay-lo), -5px -5px 12px var(--clay-hi), inset 0 1px 2px rgba(255,255,255,0.5);
+    position: relative;
+  }
+  .brand .mark::before, .brand .mark::after {
+    content:""; position:absolute; background:#fff; border-radius:2px; box-shadow: 0 1px 2px rgba(0,60,30,0.25);
+  }
+  .brand .mark::before { width:20px; height:6px; top:20px; left:13px; }
+  .brand .mark::after  { width:6px; height:20px; top:13px; left:20px; }
+  .brand h1 { font-size: 19px; margin: 0; letter-spacing: -0.2px; font-weight: 700; }
+  .brand p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-faint); }
+
+  .user {
+    display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; border-radius: 40px;
+    background: var(--panel-glass); border: 1px solid var(--panel-glass-brd);
+    backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    font-size: 13px; font-weight: 600;
+  }
+  .user .av { width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(145deg, var(--cv-green), var(--cv-green-deep));
+    color:#fff; display:grid; place-items:center; font-size:12px; font-weight:700; }
+  .toggle { font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; color:var(--ink);
+    border:1px solid var(--panel-glass-brd); background:var(--panel-glass);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    padding:8px 14px; border-radius:40px; }
+  .toggle:focus-visible { outline:3px solid var(--cv-green); outline-offset:2px; }
+
+  .step { display:flex; align-items:center; gap:11px; margin: 6px 0 16px; flex-wrap:wrap; }
+  .step .n { width: 26px; height: 26px; border-radius: 9px; flex:none;
+    background: var(--cv-green); color:#fff; font-size:13px; font-weight:700; display:grid; place-items:center;
+    box-shadow: 3px 3px 8px var(--clay-lo), -2px -2px 6px var(--clay-hi); }
+  .step h2 { margin:0; font-size:16px; font-weight:700; letter-spacing:-0.2px; }
+  .step span { color: var(--ink-faint); font-size:13px; margin-left:2px; }
+
+  .types { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:34px; }
+  @media (max-width:720px){ .types{ grid-template-columns:1fr; } }
+  .card { position:relative; text-align:left; cursor:pointer; border:0; padding:20px 18px; border-radius: var(--r-lg);
+    background: var(--clay); color: var(--ink); font-family:inherit;
+    box-shadow: 10px 10px 22px var(--clay-lo), -8px -8px 18px var(--clay-hi), inset 0 1px 1px rgba(255,255,255,0.4);
+    transition: transform .18s ease, box-shadow .18s ease; }
+  .card:hover { transform: translateY(-3px); }
+  .card:focus-visible { outline: 3px solid var(--cv-green); outline-offset: 3px; }
+  .card.on { box-shadow: inset 6px 6px 14px var(--clay-lo), inset -6px -6px 14px var(--clay-hi); transform: translateY(0); }
+  .card .ico { width:44px; height:44px; border-radius:14px; margin-bottom:14px; display:grid; place-items:center;
+    font-size:20px; font-weight:800; color:#fff;
+    background: linear-gradient(145deg, var(--cv-lime), var(--cv-green) 65%);
+    box-shadow: 4px 4px 10px var(--clay-lo), inset 0 1px 2px rgba(255,255,255,0.6); }
+  .card h3 { margin:0 0 4px; font-size:15px; font-weight:700; letter-spacing:-0.2px; }
+  .card small { color: var(--ink-faint); font-size:12.5px; line-height:1.45; display:block; }
+  .card .check { position:absolute; top:16px; right:16px; width:22px; height:22px; border-radius:50%;
+    border:2px solid var(--ink-faint); opacity:.4; transition:.18s; }
+  .card.on .check { opacity:1; border-color:var(--cv-green); background:var(--cv-green); box-shadow: inset 0 0 0 3px var(--clay); }
+  .card.soon { cursor:not-allowed; opacity:.72; }
+  .card.soon .ico { background: linear-gradient(145deg,#c9d6ce,#9fb3a6); }
+  .badge-soon { position:absolute; top:16px; right:16px; font-size:10.5px; font-weight:700; letter-spacing:.4px;
+    text-transform:uppercase; color:var(--warn); background: var(--chip-warn-bg); padding:4px 9px; border-radius:20px; }
+
+  .glass { background: var(--panel-glass); border:1px solid var(--panel-glass-brd);
+    backdrop-filter: blur(22px) saturate(150%); -webkit-backdrop-filter: blur(22px) saturate(150%);
+    border-radius: var(--r-lg); box-shadow: var(--shadow-glass); padding: 24px; margin-bottom: 22px; }
+  .glass-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+  .glass-head h2 { margin:0; font-size:16px; font-weight:700; }
+  .pill-type { font-size:12px; font-weight:700; color:var(--cv-green-deep); background: var(--chip-good-bg); padding:6px 12px; border-radius:20px; }
+  @media (prefers-color-scheme:dark){ .pill-type{ color: var(--chip-good-ink);} }
+  :root[data-theme="dark"] .pill-type { color: var(--chip-good-ink); }
+
+  .drop { border:2px dashed color-mix(in srgb, var(--cv-green) 34%, transparent); border-radius: var(--r-md);
+    padding: 26px; text-align:center; background: color-mix(in srgb, var(--cv-green) 3%, transparent); transition:.18s; }
+  .drop .up { width:52px; height:52px; margin:0 auto 12px; border-radius:16px; background: var(--clay);
+    display:grid; place-items:center; font-size:24px; box-shadow: 6px 6px 14px var(--clay-lo), -5px -5px 12px var(--clay-hi); }
+  .drop b { font-size:14.5px; }
+  .drop p { margin:5px 0 0; color:var(--ink-faint); font-size:12.5px; }
+
+  .fields { display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:18px; }
+  @media (max-width:600px){ .fields{ grid-template-columns:1fr; } }
+  .field label { display:block; font-size:12px; font-weight:700; color:var(--ink-soft); margin:0 0 6px 3px; text-transform:uppercase; letter-spacing:.4px; }
+  .field .inset { display:flex; align-items:center; gap:8px; padding:12px 14px; border-radius: var(--r-sm); background: var(--clay);
+    font-size:13.5px; color:var(--ink); box-shadow: inset 4px 4px 9px var(--clay-lo), inset -4px -4px 9px var(--clay-hi); }
+  .field .inset .tag { margin-left:auto; font-size:11px; font-weight:700; color:var(--cv-green-deep); background:var(--chip-good-bg); padding:3px 8px; border-radius:12px; }
+  @media (prefers-color-scheme:dark){ .field .inset .tag{ color:var(--chip-good-ink);} }
+
+  .review-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:640px){ .review-grid{ grid-template-columns:1fr; } }
+  .rev { border-radius: var(--r-md); padding:16px; background: color-mix(in srgb, var(--clay) 78%, transparent); border:1px solid var(--panel-glass-brd); }
+  .rev h4 { margin:0 0 12px; font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .rev h4 .dot { width:9px; height:9px; border-radius:50%; }
+  .rev h4 .count { margin-left:auto; font-size:12px; font-variant-numeric:tabular-nums; padding:2px 9px; border-radius:20px; }
+  .good h4 .dot{ background:var(--cv-green); } .good h4 .count{ background:var(--chip-good-bg); color:var(--chip-good-ink); }
+  .warn h4 .dot{ background:var(--warn); }     .warn h4 .count{ background:var(--chip-warn-bg); color:var(--chip-warn-ink); }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; }
+  .chip { font-size:12px; padding:6px 11px; border-radius:20px; font-weight:600; }
+  .chip.g { background:var(--chip-good-bg); color:var(--chip-good-ink); }
+  .chip.w { background:var(--chip-warn-bg); color:var(--chip-warn-ink); }
+
+  .cc-line { margin-top:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft);
+    padding:12px 14px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--cv-green) 4%, transparent); }
+  .cc-line b { color:var(--ink); }
+  .cc-line .em { font-weight:600; color:var(--cv-green-deep); }
+  @media (prefers-color-scheme:dark){ .cc-line .em{ color:var(--chip-good-ink);} }
+
+  .actions { display:flex; gap:12px; justify-content:flex-end; margin-top:22px; flex-wrap:wrap; }
+  .btn { border:0; font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; padding:14px 24px; border-radius:16px; transition: transform .14s ease, box-shadow .14s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn-ghost { background: var(--clay); color: var(--ink); box-shadow: 6px 6px 14px var(--clay-lo), -5px -5px 12px var(--clay-hi); }
+  .btn-primary { background: linear-gradient(145deg, var(--cv-lime), var(--cv-green) 55%, var(--cv-green-deep)); color:#fff; padding-left:26px; padding-right:26px;
+    box-shadow: 7px 7px 16px var(--clay-lo), -5px -5px 12px var(--clay-hi), inset 0 1px 2px rgba(255,255,255,0.4); }
+  .btn-primary:hover { transform: translateY(-2px); }
+  .btn-primary:focus-visible, .btn-ghost:focus-visible { outline:3px solid var(--cv-green); outline-offset:3px; }
+
+  .note { text-align:center; margin-top:30px; font-size:12px; color:var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<div class="atmos"><span class="b1"></span><span class="b2"></span><span class="b3"></span></div>
+
+<div class="wrap">
+  <header class="bar">
+    <div class="brand">
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <h1>Separador &amp; Envío · Cruz Verde</h1>
+        <p>Divide por proveedor y envía cada archivo a su correo</p>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button id="themeBtn" type="button" class="toggle" aria-label="Cambiar tema">☀️ Claro</button>
+      <div class="user"><span class="av">MM</span> María Morales</div>
+    </div>
+  </header>
+
+  <div class="step"><span class="n">1</span><h2>¿Qué archivo vas a procesar?</h2><span>· elige el tipo</span></div>
+
+  <div class="types">
+    <button class="card on" type="button" data-t="PACOM">
+      <span class="check" aria-hidden="true"></span>
+      <span class="ico">P</span>
+      <h3>PACOM</h3>
+      <small>Lista de productos. Divide por columna <b>PROVEEDOR</b>.</small>
+    </button>
+    <button class="card" type="button" data-t="ROTACIÓN POR CANALES">
+      <span class="check" aria-hidden="true"></span>
+      <span class="ico">R</span>
+      <h3>Rotación por canales</h3>
+      <small>Hoja <b>Export</b>. Divide por columna <b>NOMBRE_PROV</b>.</small>
+    </button>
+    <button class="card soon" type="button" disabled aria-disabled="true">
+      <span class="badge-soon">Próximamente</span>
+      <span class="ico">D</span>
+      <h3>Descuentos</h3>
+      <small>En configuración. Se habilita al cargar su formato.</small>
+    </button>
+  </div>
+
+  <div class="step"><span class="n">2</span><h2>Carga el archivo</h2></div>
+
+  <div class="glass">
+    <div class="glass-head">
+      <h2>Archivo de origen</h2>
+      <span class="pill-type">Tipo: PACOM</span>
+    </div>
+    <div class="drop">
+      <div class="up" aria-hidden="true">⬆️</div>
+      <b>Arrastra tu Excel aquí o haz clic para buscar</b>
+      <p>Se lee la primera hoja · .xlsx, .xls</p>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label>Columna de proveedor detectada</label>
+        <div class="inset">PROVEEDOR <span class="tag">automático</span></div>
+      </div>
+      <div class="field">
+        <label>Prefijo del archivo (opcional)</label>
+        <div class="inset">PACOM_Agosto_</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step"><span class="n">3</span><h2>Revisa antes de enviar</h2><span>· 128 proveedores en el archivo</span></div>
+
+  <div class="glass">
+    <div class="review-grid">
+      <div class="rev good">
+        <h4><span class="dot"></span> Recibirán correo <span class="count">125</span></h4>
+        <div class="chips">
+          <span class="chip g">BEIERSDORF SA</span>
+          <span class="chip g">GALDERMA DE COLOMBIA SA</span>
+          <span class="chip g">LOREAL COLOMBIA SAS</span>
+          <span class="chip g">ISDIN COLOMBIA SAS</span>
+          <span class="chip g">TECNOQUIMICAS SA</span>
+          <span class="chip g">MEGALABS COLOMBIA SAS</span>
+          <span class="chip g">+ 119 más</span>
+        </div>
+      </div>
+      <div class="rev warn">
+        <h4><span class="dot"></span> Sin correo en la base <span class="count">3</span></h4>
+        <div class="chips">
+          <span class="chip w">SESDERMA COLOMBIA S.A.</span>
+          <span class="chip w">PERCOS SA</span>
+          <span class="chip w">MEDIVELIUS FARMACEUTICA S.A</span>
+        </div>
+        <div class="cc-line" style="margin-top:14px;background:var(--chip-warn-bg);color:var(--chip-warn-ink)">
+          No coinciden exacto con la base. Corrige el Excel o agrégalos en Proveedores y vuelve a subir. (No bloquea el envío.)
+        </div>
+      </div>
+    </div>
+
+    <div class="cc-line">
+      <span aria-hidden="true">📋</span>
+      <b>Copia (CC) global:</b>
+      <span class="em">maria.morales@cruzverde.com.co</span>
+      <span class="em">jefe.comercial@cruzverde.com.co</span>
+      <span style="margin-left:auto;font-weight:700;color:var(--cv-green-deep)">Editar CC ›</span>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" type="button">Descargar ZIP</button>
+      <button class="btn btn-primary" type="button">Enviar 125 correos ›</button>
+    </div>
+  </div>
+
+  <p class="note">Mockup de estilo · glassmorfismo + claymorfismo · paleta Cruz Verde (hex aproximado, ajustable) · sin logo</p>
+</div>
+
+<script>
+  // Abrir en tema claro (para que predomine el blanco), con opción de alternar
+  var root = document.documentElement;
+  root.setAttribute('data-theme', 'light');
+  var tb = document.getElementById('themeBtn');
+  tb.addEventListener('click', function () {
+    var dark = root.getAttribute('data-theme') === 'dark';
+    root.setAttribute('data-theme', dark ? 'light' : 'dark');
+    tb.textContent = dark ? '☀️ Claro' : '🌙 Oscuro';
+  });
+
+  document.querySelectorAll('.card:not(.soon)').forEach(function (c) {
+    c.addEventListener('click', function () {
+      document.querySelectorAll('.card').forEach(function (x) { x.classList.remove('on'); });
+      c.classList.add('on');
+      var t = c.getAttribute('data-t');
+      document.querySelector('.pill-type').textContent = 'Tipo: ' + t;
+      var col = t === 'PACOM' ? 'PROVEEDOR' : (t.indexOf('ROTA') === 0 ? 'NOMBRE_PROV' : '—');
+      document.querySelector('.field .inset').firstChild.textContent = col + ' ';
+    });
+  });
+</script>
+
+</body>
+</html>
