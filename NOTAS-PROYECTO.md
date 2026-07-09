@@ -46,10 +46,7 @@ manual + macro que hoy hace una compañera.
 - [ ] **PRUEBA DE LOGIN DE MICROSOFT** (crítica — desbloquea todo el envío).
       Ver checklist en la sección 5.
 - [ ] **Archivo de muestra de DESCUENTOS** (el tercer tipo) para configurar su columna/formato.
-- [ ] **Hex exacto de la marca** Cruz Verde (hoy uso un verde aproximado #00A651).
-- [ ] Lista real de **correos de CC global**.
-- [ ] Confirmar/definir la **plantilla del correo** (asunto + cuerpo) cuando quiera.
-- [ ] Lista completa de **proveedores de consumo** con sus correos (para cargar en la base).
+
 
 ---
 

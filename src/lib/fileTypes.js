@@ -27,10 +27,10 @@ export const FILE_TYPES = [
     key: 'DESCUENTOS',
     label: 'Descuentos',
     icon: 'D',
-    description: 'En configuración. Se habilita al cargar su formato.',
-    providerColumn: null,
-    sheetHints: [],
-    enabled: false,
+    description: 'Hoja DEPURACION. Divide por columna PROVEEDOR.',
+    providerColumn: 'PROVEEDOR',
+    sheetHints: ['DEPURACION', 'CONFIRMACION DESCUENTO'],
+    enabled: true,
   },
 ]
 

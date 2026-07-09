@@ -14,6 +14,21 @@ function pickSheetName(workbook, type) {
   return names[0]
 }
 
+// Detecta la fila de encabezado: la primera fila que contenga la columna de proveedor.
+// (PACOM/Rotación la tienen en la fila 1; Descuentos en la fila 2/3.) Fallback: fila 1.
+function findHeaderRow(matrix, providerColumn) {
+  if (providerColumn) {
+    const target = providerColumn.trim().toUpperCase()
+    const idx = matrix.findIndex((row) =>
+      row.some((c) => String(c ?? '').trim().toUpperCase() === target)
+    )
+    if (idx >= 0) return idx
+  }
+  // Si no hay columna de proveedor definida, usa la primera fila con ≥2 celdas con texto.
+  const idx = matrix.findIndex((row) => row.filter((c) => String(c ?? '').trim() !== '').length >= 2)
+  return idx >= 0 ? idx : 0
+}
+
 // Parsea a partir de un ArrayBuffer/Uint8Array ya leído (permite mostrar progreso de lectura aparte).
 export function parseBuffer(buf, type) {
   const data = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf
@@ -21,14 +36,26 @@ export function parseBuffer(buf, type) {
   const sheetName = pickSheetName(workbook, type)
   const sheet = workbook.Sheets[sheetName]
 
-  const headerMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false })
-  const columns = (headerMatrix[0] || []).map((c) => (c == null ? '' : String(c)))
-
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
+  // Matriz completa (valores como se muestran) para ubicar el encabezado en cualquier fila.
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '', raw: false })
 
   const providerColumn = type.providerColumn
-  const providerColExists = columns.includes(providerColumn)
+  const headerIdx = findHeaderRow(matrix, providerColumn)
 
+  const columns = (matrix[headerIdx] || [])
+    .map((c) => (c == null ? '' : String(c).trim()))
+
+  // Filas de datos: debajo del encabezado, ignorando filas totalmente vacías.
+  const rows = matrix
+    .slice(headerIdx + 1)
+    .filter((r) => r.some((c) => String(c ?? '').trim() !== ''))
+    .map((r) => {
+      const obj = {}
+      columns.forEach((col, i) => { if (col) obj[col] = r[i] == null ? '' : r[i] })
+      return obj
+    })
+
+  const providerColExists = columns.includes(providerColumn)
   const providers = providerColExists
     ? [...new Set(rows.map((r) => (r[providerColumn] || '').toString().trim()).filter(Boolean))].sort()
     : []
@@ -39,25 +66,7 @@ export function parseBuffer(buf, type) {
 // Lee el archivo y devuelve columnas, filas y la lista de proveedores encontrados.
 export async function parseFile(file, type) {
   const buf = await file.arrayBuffer()
-  const workbook = XLSX.read(new Uint8Array(buf), { type: 'array' })
-  const sheetName = pickSheetName(workbook, type)
-  const sheet = workbook.Sheets[sheetName]
-
-  // Encabezados (primera fila)
-  const headerMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false })
-  const columns = (headerMatrix[0] || []).map((c) => (c == null ? '' : String(c)))
-
-  // Filas como objetos, valores como se muestran
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
-
-  const providerColumn = type.providerColumn
-  const providerColExists = columns.includes(providerColumn)
-
-  const providers = providerColExists
-    ? [...new Set(rows.map((r) => (r[providerColumn] || '').toString().trim()).filter(Boolean))].sort()
-    : []
-
-  return { sheetName, columns, rows, providerColumn, providerColExists, providers }
+  return parseBuffer(buf, type)
 }
 
 // -------- Generación del ZIP (un Excel por proveedor) --------
