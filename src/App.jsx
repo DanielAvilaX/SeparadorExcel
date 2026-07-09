@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import TopBar from './components/TopBar'
 import Nav from './components/Nav'
 import Login from './components/Login'
+import ToastHost from './components/ToastHost'
+import Spinner from './components/Spinner'
 import ProcesarView from './views/ProcesarView'
 import ProveedoresView from './views/ProveedoresView'
 import CcView from './views/CcView'
@@ -27,7 +29,12 @@ export default function App() {
   // Con Supabase configurado exigimos login. Sin configurar (dev), se omite.
   const needsAuth = isConfigured()
   if (needsAuth && session === undefined) {
-    return <div className="center-loader">Cargando…</div>
+    return (
+      <>
+        <div className="atmos"><span className="b1" /><span className="b2" /><span className="b3" /></div>
+        <div className="center-loader"><Spinner lg /></div>
+      </>
+    )
   }
   if (needsAuth && !session) {
     return <Login />
@@ -48,15 +55,19 @@ export default function App() {
         />
         <Nav view={view} onChange={setView} />
 
-        {view === 'procesar' && <ProcesarView />}
-        {view === 'proveedores' && <ProveedoresView />}
-        {view === 'cc' && <CcView />}
-        {view === 'plantilla' && <PlantillaView />}
+        <div className="view" key={view}>
+          {view === 'procesar' && <ProcesarView />}
+          {view === 'proveedores' && <ProveedoresView />}
+          {view === 'cc' && <CcView />}
+          {view === 'plantilla' && <PlantillaView />}
+        </div>
 
         <p className="note">
           Separador &amp; Envío · Cruz Verde · el envío de correo se habilita tras la prueba de acceso de Microsoft
         </p>
       </div>
+
+      <ToastHost />
     </>
   )
 }

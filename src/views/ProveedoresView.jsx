@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import ExcelJS from 'exceljs'
+import Spinner from '../components/Spinner'
+import { toast } from '../lib/toast'
 import { isConfigured } from '../lib/supabase'
 import {
   listProviders, addProvider, updateProvider, deleteProvider,
@@ -13,7 +15,6 @@ export default function ProveedoresView() {
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
 
-  // formulario add/edit
   const [editingId, setEditingId] = useState(null)
   const [nombre, setNombre] = useState('')
   const [emailsStr, setEmailsStr] = useState('')
@@ -21,26 +22,18 @@ export default function ProveedoresView() {
   const [saving, setSaving] = useState(false)
 
   const fileRef = useRef(null)
-  const [importMsg, setImportMsg] = useState('')
+  const [importing, setImporting] = useState(false)
 
   async function load() {
-    setLoading(true)
-    setError('')
-    try {
-      setRows(await listProviders())
-    } catch (e) {
-      console.error(e)
-      setError(e.message || 'No se pudo cargar la lista.')
-    } finally {
-      setLoading(false)
-    }
+    setLoading(true); setError('')
+    try { setRows(await listProviders()) }
+    catch (e) { console.error(e); setError(e.message || 'No se pudo cargar la lista.') }
+    finally { setLoading(false) }
   }
 
   useEffect(() => { if (isConfigured()) load(); else setLoading(false) }, [])
 
-  function resetForm() {
-    setEditingId(null); setNombre(''); setEmailsStr(''); setActivo(true)
-  }
+  function resetForm() { setEditingId(null); setNombre(''); setEmailsStr(''); setActivo(true) }
 
   function startEdit(p) {
     setEditingId(p.id); setNombre(p.nombre); setEmailsStr((p.emails || []).join('; ')); setActivo(p.activo)
@@ -49,44 +42,42 @@ export default function ProveedoresView() {
 
   async function save() {
     const nom = nombre.trim()
-    if (!nom) return alert('Escribe el nombre del proveedor.')
+    if (!nom) return toast.error('Escribe el nombre del proveedor.')
     const emails = parseEmails(emailsStr)
     const bad = emails.filter((e) => !isEmail(e))
-    if (bad.length) return alert('Estos correos no son válidos:\n' + bad.join('\n'))
+    if (bad.length) return toast.error('Correo no válido: ' + bad[0])
 
     setSaving(true)
     try {
-      if (editingId) await updateProvider(editingId, { nombre: nom, emails, activo })
-      else await addProvider({ nombre: nom, emails, activo })
+      if (editingId) { await updateProvider(editingId, { nombre: nom, emails, activo }); toast.success('Proveedor actualizado.') }
+      else { await addProvider({ nombre: nom, emails, activo }); toast.success('Proveedor agregado.') }
       resetForm()
       await load()
     } catch (e) {
       console.error(e)
-      alert(e.message?.includes('duplicate') ? 'Ya existe un proveedor con ese nombre.' : (e.message || 'Error al guardar.'))
-    } finally {
-      setSaving(false)
-    }
+      toast.error(e.message?.includes('duplicate') ? 'Ya existe un proveedor con ese nombre.' : (e.message || 'Error al guardar.'))
+    } finally { setSaving(false) }
   }
 
   async function remove(p) {
     if (!confirm(`¿Eliminar "${p.nombre}"?`)) return
-    try { await deleteProvider(p.id); await load() }
-    catch (e) { console.error(e); alert(e.message || 'Error al eliminar.') }
+    try { await deleteProvider(p.id); toast.success('Proveedor eliminado.'); await load() }
+    catch (e) { console.error(e); toast.error(e.message || 'Error al eliminar.') }
   }
 
   async function onImportFile(file) {
     if (!file) return
-    setImportMsg('')
+    setImporting(true)
     try {
       const parsed = await parseProvidersFile(file)
-      if (!parsed.length) return setImportMsg('El archivo no tiene filas válidas.')
+      if (!parsed.length) { toast.error('El archivo no tiene filas válidas.'); return }
       await bulkUpsertProviders(parsed)
-      setImportMsg(`✓ ${parsed.length} proveedores cargados/actualizados.`)
+      toast.success(`${parsed.length} proveedores cargados/actualizados.`)
       await load()
     } catch (e) {
-      console.error(e)
-      setImportMsg('Error al importar: ' + (e.message || ''))
+      console.error(e); toast.error('Error al importar: ' + (e.message || ''))
     } finally {
+      setImporting(false)
       if (fileRef.current) fileRef.current.value = ''
     }
   }
@@ -152,7 +143,7 @@ export default function ProveedoresView() {
             <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Activo
           </label>
           <button className="btn btn-primary" disabled={saving} onClick={save} style={{ padding: '12px 22px' }}>
-            {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar'}
+            {saving ? <><Spinner light /> Guardando…</> : editingId ? 'Guardar cambios' : 'Agregar'}
           </button>
         </div>
       </div>
@@ -168,8 +159,9 @@ export default function ProveedoresView() {
           existan se actualizan; los nuevos se agregan.
         </p>
         <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => onImportFile(e.target.files[0])} />
-        <button className="btn btn-ghost" type="button" onClick={() => fileRef.current.click()}>Subir Excel de proveedores</button>
-        {importMsg && <p className="hint" style={{ marginTop: 12 }}>{importMsg}</p>}
+        <button className="btn btn-ghost" type="button" disabled={importing} onClick={() => fileRef.current.click()}>
+          {importing ? <><Spinner /> Importando…</> : 'Subir Excel de proveedores'}
+        </button>
       </div>
 
       {/* Lista */}
@@ -180,7 +172,7 @@ export default function ProveedoresView() {
         </div>
 
         {loading ? (
-          <p className="muted">Cargando…</p>
+          <div className="loader-row"><Spinner /> Cargando proveedores…</div>
         ) : filtered.length === 0 ? (
           <p className="muted">{rows.length === 0 ? 'Aún no hay proveedores. Agrega uno o sube el Excel.' : 'Sin resultados para la búsqueda.'}</p>
         ) : (

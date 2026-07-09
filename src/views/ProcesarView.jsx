@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import TypeSelector from '../components/TypeSelector'
 import Uploader from '../components/Uploader'
+import Spinner from '../components/Spinner'
+import { toast } from '../lib/toast'
 import { getType } from '../lib/fileTypes'
 import { generateZip, downloadBlob } from '../lib/excel'
 import { isConfigured } from '../lib/supabase'
@@ -65,12 +67,13 @@ export default function ProcesarView() {
     if (!parsed) return
     setBusy(true)
     try {
-      const { blob } = await generateZip({
+      const { blob, count } = await generateZip({
         rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn, prefix,
       })
       downloadBlob(blob, `${type.key}_DOCUMENTOS_SEPARADOS.zip`)
+      toast.success(`ZIP generado · ${count} archivo${count === 1 ? '' : 's'}.`)
     } catch (e) {
-      console.error(e); alert('Ocurrió un error generando los archivos. Revisa la consola.')
+      console.error(e); toast.error('Error generando los archivos. Revisa la consola.')
     } finally { setBusy(false) }
   }
 
@@ -182,7 +185,7 @@ export default function ProcesarView() {
             <p className="hint">El envío de correos se habilita en la siguiente fase. Por ahora puedes descargar el ZIP con un Excel por proveedor.</p>
             <div className="actions">
               <button className="btn btn-primary" disabled={busy || selectedCols.length === 0} onClick={handleGenerate}>
-                {busy ? 'Generando…' : 'Descargar ZIP'}
+                {busy ? <><Spinner light /> Generando…</> : 'Descargar ZIP'}
               </button>
             </div>
           </div>

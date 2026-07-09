@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import Spinner from '../components/Spinner'
+import { toast } from '../lib/toast'
 import { isConfigured } from '../lib/supabase'
 import { listCc, addCc, deleteCc, isEmail } from '../lib/providers'
 
@@ -20,16 +22,17 @@ export default function CcView() {
 
   async function add() {
     const e = email.trim()
-    if (!isEmail(e)) return alert('Correo no válido.')
+    if (!isEmail(e)) return toast.error('Correo no válido.')
     setSaving(true)
-    try { await addCc(e); setEmail(''); await load() }
-    catch (err) { console.error(err); alert(err.message?.includes('duplicate') ? 'Ese correo ya está en la copia.' : (err.message || 'Error.')) }
+    try { await addCc(e); setEmail(''); toast.success('Correo agregado a la copia.'); await load() }
+    catch (err) { console.error(err); toast.error(err.message?.includes('duplicate') ? 'Ese correo ya está en la copia.' : (err.message || 'Error.')) }
     finally { setSaving(false) }
   }
 
   async function remove(item) {
     if (!confirm(`¿Quitar ${item.email} de la copia?`)) return
-    try { await deleteCc(item.id); await load() } catch (e) { console.error(e); alert(e.message) }
+    try { await deleteCc(item.id); toast.success('Correo quitado.'); await load() }
+    catch (e) { console.error(e); toast.error(e.message) }
   }
 
   if (!isConfigured()) {
@@ -58,12 +61,12 @@ export default function CcView() {
               onKeyDown={(e) => { if (e.key === 'Enter') add() }} />
           </div>
           <button className="btn btn-primary" disabled={saving} onClick={add} style={{ padding: '12px 22px' }}>
-            {saving ? 'Agregando…' : 'Agregar a la copia'}
+            {saving ? <><Spinner light /> Agregando…</> : 'Agregar a la copia'}
           </button>
         </div>
 
         {loading ? (
-          <p className="muted">Cargando…</p>
+          <div className="loader-row"><Spinner /> Cargando…</div>
         ) : rows.length === 0 ? (
           <p className="muted">Aún no hay correos en copia.</p>
         ) : (

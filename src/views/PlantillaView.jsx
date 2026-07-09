@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import Spinner from '../components/Spinner'
+import { toast } from '../lib/toast'
 import { isConfigured } from '../lib/supabase'
 import { getTemplate, saveTemplate, VARS, render } from '../lib/template'
 
@@ -7,7 +9,6 @@ export default function PlantillaView() {
   const [cuerpo, setCuerpo] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
   const cuerpoRef = useRef(null)
 
@@ -30,11 +31,11 @@ export default function PlantillaView() {
   }
 
   async function save() {
-    setSaving(true); setMsg('')
+    setSaving(true)
     try {
       await saveTemplate({ asunto, cuerpo })
-      setMsg('✓ Plantilla guardada.')
-    } catch (e) { console.error(e); setMsg('Error al guardar: ' + e.message) }
+      toast.success('Plantilla guardada.')
+    } catch (e) { console.error(e); toast.error('Error al guardar: ' + e.message) }
     finally { setSaving(false) }
   }
 
@@ -50,7 +51,7 @@ export default function PlantillaView() {
 
       <div className="glass" style={{ marginBottom: 16 }}>
         {error && <div className="banner bad">No se pudo cargar la plantilla. {error}</div>}
-        {loading ? <p className="muted">Cargando…</p> : (
+        {loading ? <div className="loader-row"><Spinner /> Cargando plantilla…</div> : (
           <>
             <div className="field" style={{ marginBottom: 16 }}>
               <label>Asunto</label>
@@ -74,8 +75,9 @@ export default function PlantillaView() {
             </div>
 
             <div className="actions">
-              {msg && <span className="hint" style={{ marginRight: 'auto', marginTop: 0, alignSelf: 'center' }}>{msg}</span>}
-              <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Guardando…' : 'Guardar plantilla'}</button>
+              <button className="btn btn-primary" disabled={saving} onClick={save}>
+                {saving ? <><Spinner light /> Guardando…</> : 'Guardar plantilla'}
+              </button>
             </div>
           </>
         )}
