@@ -94,10 +94,14 @@ antes de construir toda la capa de correo.
       estilos reales vía ExcelJS; el código viejo los ponía pero SheetJS free los ignoraba).
 - Pendiente afinar: formato de fechas/`%descuento` por tipo cuando veamos las salidas reales.
 
-**Fase 2 — Base de proveedores (Supabase)** (no depende de María)
-- Esquema: `providers (id, nombre, emails[], activo)`, `cc_global (id, email)`.
-- Pantallas: ver / agregar / editar / eliminar; carga masiva por Excel; gestión de CC.
-- Migrar la lista blanca hardcodeada actual a la base.
+**Fase 2 — Base de proveedores (Supabase)** ✅ HECHA (falta correr el SQL en Supabase)
+- [x] Esquema `supabase/schema.sql`: `providers (nombre único, emails[], activo)`, `cc_global`, `email_template`.
+- [x] Navegación: Procesar / Proveedores / Copia (CC).
+- [x] Proveedores: ver, buscar, agregar, editar, eliminar; carga masiva por Excel + plantilla descargable.
+- [x] CC global: agregar / eliminar correos en copia.
+- [x] RLS temporal para `anon` (se restringe a `authenticated` en Fase 3).
+- **ACCIÓN PENDIENTE (Daniel):** ejecutar `supabase/schema.sql` en Supabase → SQL Editor.
+- Nota: NO se migró la lista blanca vieja (los proveedores de consumo son otros; se cargan por Excel).
 
 **Fase 3 — Login (Supabase Auth)** (no depende de María)
 - Acceso solo para ella.
