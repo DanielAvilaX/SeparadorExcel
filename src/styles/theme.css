@@ -264,3 +264,8 @@ body {
 .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 14px; flex-wrap:wrap; }
 .section-title h2 { margin:0; font-size:16px; font-weight:700; }
 .muted { color:var(--ink-faint); font-size:12.5px; }
+
+/* ---- login ---- */
+.login-wrap { min-height:100vh; display:grid; place-items:center; padding:22px; }
+.login-card { width:100%; max-width:400px; }
+.center-loader { min-height:100vh; display:grid; place-items:center; color:var(--ink-faint); font-size:14px; }

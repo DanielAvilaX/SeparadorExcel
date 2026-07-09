@@ -1,4 +1,6 @@
-export default function TopBar({ theme, onToggle }) {
+export default function TopBar({ theme, onToggle, userEmail, onLogout }) {
+  const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'MM'
+  const label = userEmail || 'María Morales'
   return (
     <header className="bar">
       <div className="brand">
@@ -12,7 +14,12 @@ export default function TopBar({ theme, onToggle }) {
         <button className="toggle" type="button" onClick={onToggle} aria-label="Cambiar tema">
           {theme === 'dark' ? '🌙 Oscuro' : '☀️ Claro'}
         </button>
-        <div className="user"><span className="av">MM</span> María Morales</div>
+        <div className="user">
+          <span className="av">{initials}</span> {label}
+          {onLogout && (
+            <button className="mini del" style={{ marginLeft: 8 }} onClick={onLogout}>Salir</button>
+          )}
+        </div>
       </div>
     </header>
   )
