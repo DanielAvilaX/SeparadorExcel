@@ -8,20 +8,18 @@ import { generateZip, downloadBlob } from '../lib/excel'
 import { isConfigured } from '../lib/supabase'
 import { listProviders } from '../lib/providers'
 
-export default function ProcesarView() {
-  const [typeKey, setTypeKey] = useState('PACOM')
-  const [parsed, setParsed] = useState(null)
-  const [file, setFile] = useState(null)
-  const [prefix, setPrefix] = useState('')
-  const [selectedCols, setSelectedCols] = useState([])
-  const [busy, setBusy] = useState(false)
+export default function ProcesarView({ state, setState }) {
+  const { typeKey, parsed, file, prefix, selectedCols } = state
+  const patch = (p) => setState((s) => ({ ...s, ...p }))
 
-  // Proveedores en la base (para el cruce)
   const [db, setDb] = useState([])
   const [dbLoaded, setDbLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const type = getType(typeKey)
 
+  // Se ejecuta en cada montaje (incluido al volver a la pestaña) → refresca la base
+  // para reflejar proveedores agregados/editados sin re-subir el archivo.
   useEffect(() => {
     if (!isConfigured()) { setDbLoaded(true); return }
     listProviders()
@@ -30,14 +28,12 @@ export default function ProcesarView() {
       .finally(() => setDbLoaded(true))
   }, [])
 
-  // Índice nombre -> proveedor (coincidencia EXACTA por nombre)
   const dbIndex = useMemo(() => {
     const m = new Map()
     db.forEach((p) => m.set(p.nombre, p))
     return m
   }, [db])
 
-  // Cruce: recibirán correo (en base, activo, con ≥1 correo) vs. sin correo
   const match = useMemo(() => {
     if (!parsed || !parsed.providerColExists) return null
     const conCorreo = []
@@ -50,20 +46,14 @@ export default function ProcesarView() {
     return { conCorreo, sinCorreo }
   }, [parsed, dbIndex])
 
-  function selectType(key) {
-    setTypeKey(key); setParsed(null); setFile(null); setSelectedCols([])
-  }
-  function onParsed(p, f) {
-    setParsed(p); setFile(f); setSelectedCols(p.columns)
-  }
-  function clearFile() {
-    setParsed(null); setFile(null); setSelectedCols([])
-  }
+  function selectType(key) { patch({ typeKey: key, parsed: null, file: null, selectedCols: [] }) }
+  function onParsed(p, f) { patch({ parsed: p, file: f, selectedCols: p.columns }) }
+  function clearFile() { patch({ parsed: null, file: null, selectedCols: [] }) }
   function toggleCol(c) {
-    setSelectedCols((cols) => (cols.includes(c) ? cols.filter((x) => x !== c) : [...cols, c]))
+    patch({ selectedCols: selectedCols.includes(c) ? selectedCols.filter((x) => x !== c) : [...selectedCols, c] })
   }
   function toggleAll() {
-    setSelectedCols((cols) => (cols.length === parsed.columns.length ? [] : parsed.columns))
+    patch({ selectedCols: selectedCols.length === parsed.columns.length ? [] : parsed.columns })
   }
 
   async function handleGenerate() {
@@ -81,6 +71,7 @@ export default function ProcesarView() {
   }
 
   const ready = parsed && parsed.providerColExists
+  const crossing = isConfigured() && !dbLoaded
 
   return (
     <>
@@ -113,7 +104,7 @@ export default function ProcesarView() {
               <div className="field">
                 <label>Prefijo del archivo (opcional)</label>
                 <div className="inset">
-                  <input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="Ej: PACOM_Agosto_" />
+                  <input value={prefix} onChange={(e) => patch({ prefix: e.target.value })} placeholder="Ej: PACOM_Agosto_" />
                 </div>
               </div>
             </div>
@@ -145,44 +136,48 @@ export default function ProcesarView() {
       </div>
 
       {/* Paso 3 — Revisión con cruce contra la base */}
-      {ready && match && (
+      {ready && (
         <>
           <div className="step">
             <span className="n">3</span><h2>Revisa antes de enviar</h2>
             <span className="sub">· {parsed.providers.length} proveedores en el archivo</span>
           </div>
           <div className="glass">
-            {!isConfigured() && (
-              <div className="banner warn">Supabase no está configurado; no se puede cruzar contra la base.</div>
-            )}
-            {isConfigured() && dbLoaded && db.length === 0 && (
-              <div className="banner warn">
-                La base de proveedores está vacía. Ve a <b>Proveedores</b> y carga la lista (o sube el Excel) para
-                que se pueda saber quién recibe correo.
-              </div>
-            )}
+            {crossing ? (
+              <div className="loader-row"><Spinner /> Cruzando con la base de proveedores…</div>
+            ) : (
+              <>
+                {!isConfigured() && (
+                  <div className="banner warn">Supabase no está configurado; no se puede cruzar contra la base.</div>
+                )}
+                {isConfigured() && db.length === 0 && (
+                  <div className="banner warn">
+                    La base de proveedores está vacía. Ve a <b>Proveedores</b> y carga la lista para saber quién recibe correo.
+                  </div>
+                )}
 
-            <div className="review-grid">
-              <div className="rev good">
-                <h4><span className="dot" /> Recibirán correo <span className="count">{match.conCorreo.length}</span></h4>
-                {match.conCorreo.length === 0
-                  ? <p className="muted">Ninguno coincide con la base todavía.</p>
-                  : <div className="chips">{match.conCorreo.map((p) => <span key={p.name} className="chip g" title={p.emails.join(', ')}>{p.name}</span>)}</div>}
-              </div>
-              <div className="rev warn">
-                <h4><span className="dot" /> Sin correo en la base <span className="count">{match.sinCorreo.length}</span></h4>
-                {match.sinCorreo.length === 0
-                  ? <p className="muted">Todos los proveedores tienen correo. 🎉</p>
-                  : <div className="chips">{match.sinCorreo.map((p) => <span key={p.name} className="chip w" title={p.reason}>{p.name}</span>)}</div>}
-              </div>
-            </div>
+                <div className="review-grid">
+                  <div className="rev good">
+                    <h4><span className="dot" /> Recibirán correo <span className="count">{match.conCorreo.length}</span></h4>
+                    {match.conCorreo.length === 0
+                      ? <p className="muted">Ninguno coincide con la base todavía.</p>
+                      : <div className="chips">{match.conCorreo.map((p) => <span key={p.name} className="chip g" title={p.emails.join(', ')}>{p.name}</span>)}</div>}
+                  </div>
+                  <div className="rev warn">
+                    <h4><span className="dot" /> Sin correo en la base <span className="count">{match.sinCorreo.length}</span></h4>
+                    {match.sinCorreo.length === 0
+                      ? <p className="muted">Todos los proveedores tienen correo. 🎉</p>
+                      : <div className="chips">{match.sinCorreo.map((p) => <span key={p.name} className="chip w" title={p.reason}>{p.name}</span>)}</div>}
+                  </div>
+                </div>
 
-            {match.sinCorreo.length > 0 && (
-              <div className="banner warn" style={{ marginTop: 16 }}>
-                Los de la derecha <b>no recibirán correo</b> (no coinciden exacto con la base, están inactivos o no
-                tienen correo). Puedes corregir el Excel o agregarlos en <b>Proveedores</b> y volver a subir el archivo.
-                No bloquea la descarga.
-              </div>
+                {match.sinCorreo.length > 0 && (
+                  <div className="banner warn" style={{ marginTop: 16 }}>
+                    Los de la derecha <b>no recibirán correo</b>. Agrégalos en <b>Proveedores</b> y al volver a esta
+                    pestaña se recalcula solo (sin re-subir el archivo). No bloquea la descarga.
+                  </div>
+                )}
+              </>
             )}
 
             <p className="hint">El envío de correos se habilita en la siguiente fase. Por ahora puedes descargar el ZIP con un Excel por proveedor.</p>

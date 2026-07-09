@@ -16,6 +16,12 @@ export default function App() {
   const [view, setView] = useState('procesar')
   const [session, setSession] = useState(undefined) // undefined = cargando
 
+  // Estado de "Procesar" elevado aquí para que sobreviva al cambio de pestaña
+  // (la vista se remonta por la animación; el archivo ya subido no se pierde).
+  const [proc, setProc] = useState({
+    typeKey: 'PACOM', parsed: null, file: null, prefix: '', selectedCols: [],
+  })
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
@@ -57,7 +63,7 @@ export default function App() {
         <Nav view={view} onChange={setView} />
 
         <div className="view" key={view}>
-          {view === 'procesar' && <ProcesarView />}
+          {view === 'procesar' && <ProcesarView state={proc} setState={setProc} />}
           {view === 'proveedores' && <ProveedoresView />}
           {view === 'cc' && <CcView />}
           {view === 'plantilla' && <PlantillaView />}
