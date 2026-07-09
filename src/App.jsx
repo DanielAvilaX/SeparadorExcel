@@ -4,6 +4,7 @@ import Nav from './components/Nav'
 import ProcesarView from './views/ProcesarView'
 import ProveedoresView from './views/ProveedoresView'
 import CcView from './views/CcView'
+import PlantillaView from './views/PlantillaView'
 
 export default function App() {
   const [theme, setTheme] = useState('light')
@@ -24,9 +25,10 @@ export default function App() {
         {view === 'procesar' && <ProcesarView />}
         {view === 'proveedores' && <ProveedoresView />}
         {view === 'cc' && <CcView />}
+        {view === 'plantilla' && <PlantillaView />}
 
         <p className="note">
-          Fase 2 · base de proveedores en Supabase · login, pantalla de revisión y correo en las siguientes fases
+          Separador &amp; Envío · Cruz Verde · el envío de correo se habilita tras la prueba de acceso de Microsoft
         </p>
       </div>
     </>

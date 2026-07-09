@@ -2,6 +2,7 @@ const TABS = [
   { key: 'procesar', label: 'Procesar archivo' },
   { key: 'proveedores', label: 'Proveedores' },
   { key: 'cc', label: 'Copia (CC)' },
+  { key: 'plantilla', label: 'Plantilla' },
 ]
 
 export default function Nav({ view, onChange }) {
