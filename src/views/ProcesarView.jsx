@@ -3,10 +3,14 @@ import TypeSelector from '../components/TypeSelector'
 import Uploader from '../components/Uploader'
 import Spinner from '../components/Spinner'
 import { toast } from '../lib/toast'
+import { confirmDialog } from '../lib/confirm'
 import { getType } from '../lib/fileTypes'
-import { generateZip, downloadBlob } from '../lib/excel'
+import { generateZip, downloadBlob, buildProviderFiles, arrayBufferToBase64 } from '../lib/excel'
 import { isConfigured } from '../lib/supabase'
-import { listProviders } from '../lib/providers'
+import { listProviders, listCc } from '../lib/providers'
+import { getTemplate, render } from '../lib/template'
+
+const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 
 export default function ProcesarView({ state, setState }) {
   const { typeKey, parsed, file, prefix, selectedCols } = state
@@ -15,8 +19,15 @@ export default function ProcesarView({ state, setState }) {
   const [db, setDb] = useState([])
   const [dbLoaded, setDbLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [progress, setProgress] = useState(null)
 
   const type = getType(typeKey)
+
+  useEffect(() => {
+    if (!isDesktop || !window.desktop.onProgress) return
+    return window.desktop.onProgress((p) => setProgress(p))
+  }, [])
 
   // Se ejecuta en cada montaje (incluido al volver a la pestaña) → refresca la base
   // para reflejar proveedores agregados/editados sin re-subir el archivo.
@@ -68,6 +79,54 @@ export default function ProcesarView({ state, setState }) {
     } catch (e) {
       console.error(e); toast.error('Error generando los archivos. Revisa la consola.')
     } finally { setBusy(false) }
+  }
+
+  async function handleSend() {
+    const targets = match ? match.conCorreo : []
+    if (!targets.length) return
+    const ok = await confirmDialog({
+      title: 'Enviar correos',
+      message: `Se enviarán ${targets.length} correos desde tu Outlook — uno por proveedor con su archivo adjunto. ¿Continuar?`,
+      confirmText: `Enviar ${targets.length}`,
+    })
+    if (!ok) return
+
+    setSending(true)
+    setProgress({ current: 0, total: targets.length, provider: '' })
+    try {
+      const [tpl, cc] = await Promise.all([getTemplate(), listCc()])
+      const ccEmails = cc.map((c) => c.email)
+      const mes = new Date().toLocaleDateString('es', { month: 'long' })
+
+      const files = await buildProviderFiles({
+        rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn,
+        prefix, type, onlyProviders: targets.map((t) => t.name),
+      })
+      const fileMap = new Map(files.map((f) => [f.provider, f]))
+
+      const emails = targets.map((t) => {
+        const f = fileMap.get(t.name)
+        const vars = { proveedor: t.name, correos: t.emails.join(', '), mes }
+        return {
+          provider: t.name,
+          to: t.emails,
+          cc: ccEmails,
+          subject: render(tpl.asunto, vars),
+          body: render(tpl.cuerpo, vars),
+          attachmentName: f ? f.filename : `${t.name}.xlsx`,
+          attachmentB64: f ? arrayBufferToBase64(f.buffer) : '',
+        }
+      })
+
+      const res = await window.desktop.sendEmails(emails)
+      if (res.fatal) toast.error('Outlook: ' + res.fatal)
+      else if (res.fail === 0) toast.success(`${res.ok} correos enviados desde tu Outlook. ✅`)
+      else toast.error(`Enviados ${res.ok}, fallaron ${res.fail}. Revisa Outlook.`)
+    } catch (e) {
+      console.error(e); toast.error('Error al enviar: ' + e.message)
+    } finally {
+      setSending(false); setProgress(null)
+    }
   }
 
   const ready = parsed && parsed.providerColExists
@@ -190,11 +249,28 @@ export default function ProcesarView({ state, setState }) {
               </>
             )}
 
-            <p className="hint">El envío de correos se habilita en la siguiente fase. Por ahora puedes descargar el ZIP con un Excel por proveedor.</p>
+            {isDesktop ? (
+              <p className="hint">
+                Cada proveedor recibirá su archivo adjunto por correo, desde tu Outlook, con el asunto y cuerpo de la <b>Plantilla</b> y la <b>Copia (CC)</b> configurada.
+              </p>
+            ) : (
+              <p className="hint">El envío por correo está disponible en la <b>app de escritorio</b>. Aquí (web) puedes descargar el ZIP con un Excel por proveedor.</p>
+            )}
             <div className="actions">
-              <button className="btn btn-primary" disabled={busy || selectedCols.length === 0} onClick={handleGenerate}>
-                {busy ? <><Spinner light /> Generando…</> : 'Descargar ZIP'}
+              <button
+                className={'btn ' + (isDesktop ? 'btn-ghost' : 'btn-primary')}
+                disabled={busy || sending || selectedCols.length === 0}
+                onClick={handleGenerate}
+              >
+                {busy ? <><Spinner /> Generando…</> : 'Descargar ZIP'}
               </button>
+              {isDesktop && match.conCorreo.length > 0 && (
+                <button className="btn btn-primary" disabled={sending || busy} onClick={handleSend}>
+                  {sending
+                    ? <><Spinner light /> {progress ? `Enviando ${progress.current}/${progress.total}…` : 'Enviando…'}</>
+                    : `Enviar ${match.conCorreo.length} correo${match.conCorreo.length === 1 ? '' : 's'}`}
+                </button>
+              )}
             </div>
           </div>
         </>

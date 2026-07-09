@@ -180,26 +180,40 @@ async function buildDescuentosWorkbook(providerRows, output) {
   return wb
 }
 
-// Devuelve un Blob (ZIP) y un resumen. `type` decide el formato de salida.
-export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null }) {
+// Genera un archivo Excel por proveedor. Devuelve [{ provider, filename, buffer }].
+export async function buildProviderFiles({ rows, columns, providerColumn, prefix = '', type = null, onlyProviders = null }) {
   const groups = groupByProvider(rows, providerColumn)
   const filter = onlyProviders ? new Set(onlyProviders) : null
-
-  const zip = new JSZip()
-  let count = 0
-
+  const out = []
   for (const [provider, providerRows] of groups) {
     if (filter && !filter.has(provider)) continue
     const wb = type?.output?.mode === 'descuentos'
       ? await buildDescuentosWorkbook(providerRows, type.output)
       : await buildProviderWorkbook(providerRows, columns)
     const buffer = await wb.xlsx.writeBuffer()
-    zip.file(`${prefix}${sanitize(provider)}.xlsx`, buffer)
-    count++
+    out.push({ provider, filename: `${prefix}${sanitize(provider)}.xlsx`, buffer })
   }
+  return out
+}
 
+// Devuelve un Blob (ZIP) y un resumen. `type` decide el formato de salida.
+export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null }) {
+  const files = await buildProviderFiles({ rows, columns, providerColumn, prefix, type, onlyProviders })
+  const zip = new JSZip()
+  files.forEach((f) => zip.file(f.filename, f.buffer))
   const blob = await zip.generateAsync({ type: 'blob' })
-  return { blob, count }
+  return { blob, count: files.length }
+}
+
+// ArrayBuffer -> base64 (para pasar adjuntos al proceso de Electron).
+export function arrayBufferToBase64(ab) {
+  const bytes = new Uint8Array(ab)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
 }
 
 export function formatBytes(bytes) {
