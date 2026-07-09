@@ -33,13 +33,23 @@ function sendViaOutlook(payload, onProgress) {
         attachment,
       }
     })
-
     const manifestPath = path.join(dir, 'manifest.json')
     fs.writeFileSync(manifestPath, JSON.stringify(manifest), 'utf8')
 
-    const ps1 = path.join(__dirname, 'send-outlook.ps1')
+    // El .ps1 vive dentro del app.asar; PowerShell no puede ejecutarlo desde ahí.
+    // Lo copiamos a disco real (fs SÍ lee desde el asar) y lo corremos desde el temp.
+    const ps1 = path.join(dir, 'send-outlook.ps1')
+    try {
+      fs.writeFileSync(ps1, fs.readFileSync(path.join(__dirname, 'send-outlook.ps1')))
+    } catch (e) {
+      try { fs.rmSync(dir, { recursive: true, force: true }) } catch { /* noop */ }
+      resolve({ ok: 0, fail: 0, results: [], fatal: 'No se encontró el script de envío: ' + e.message })
+      return
+    }
+
     const results = []
     let fatal = null
+    let stderr = ''
 
     const child = spawn(
       'powershell.exe',
@@ -62,10 +72,15 @@ function sendViaOutlook(payload, onProgress) {
         else if (msg.type === 'fatal') fatal = msg.message
       }
     })
-
-    child.on('error', (e) => { fatal = fatal || e.message })
-    child.on('close', () => {
+    child.stderr.on('data', (d) => { stderr += d.toString('utf8') })
+    child.on('error', (e) => { fatal = fatal || ('No se pudo iniciar PowerShell: ' + e.message) })
+    child.on('close', (code) => {
       try { fs.rmSync(dir, { recursive: true, force: true }) } catch { /* noop */ }
+      if (!fatal && results.length === 0) {
+        fatal = stderr.trim()
+          ? 'Error de PowerShell: ' + stderr.trim().split('\n')[0]
+          : `PowerShell terminó sin resultados (código ${code}).`
+      }
       const ok = results.filter((r) => r.ok).length
       const fail = results.filter((r) => !r.ok).length
       resolve({ ok, fail, results, fatal })
