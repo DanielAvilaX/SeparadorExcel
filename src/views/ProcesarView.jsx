@@ -12,22 +12,16 @@ import { getTemplate, render } from '../lib/template'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 
-export default function ProcesarView({ state, setState }) {
+export default function ProcesarView({ state, setState, runSend, sendActive }) {
   const { typeKey, parsed, file, prefix, selectedCols } = state
   const patch = (p) => setState((s) => ({ ...s, ...p }))
 
   const [db, setDb] = useState([])
   const [dbLoaded, setDbLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [progress, setProgress] = useState(null)
+  const [preparing, setPreparing] = useState(false)
 
   const type = getType(typeKey)
-
-  useEffect(() => {
-    if (!isDesktop || !window.desktop.onProgress) return
-    return window.desktop.onProgress((p) => setProgress(p))
-  }, [])
 
   // Se ejecuta en cada montaje (incluido al volver a la pestaña) → refresca la base
   // para reflejar proveedores agregados/editados sin re-subir el archivo.
@@ -91,8 +85,7 @@ export default function ProcesarView({ state, setState }) {
     })
     if (!ok) return
 
-    setSending(true)
-    setProgress({ current: 0, total: targets.length, provider: '' })
+    setPreparing(true)
     try {
       const [tpl, cc] = await Promise.all([getTemplate(), listCc()])
       const ccEmails = cc.map((c) => c.email)
@@ -118,14 +111,12 @@ export default function ProcesarView({ state, setState }) {
         }
       })
 
-      const res = await window.desktop.sendEmails(emails)
-      if (res.fatal) toast.error('Outlook: ' + res.fatal)
-      else if (res.fail === 0) toast.success(`${res.ok} correos enviados desde tu Outlook. ✅`)
-      else toast.error(`Enviados ${res.ok}, fallaron ${res.fail}. Revisa Outlook.`)
+      // El envío y su modal de progreso se manejan a nivel App (sobreviven cambios de pestaña)
+      runSend(emails)
     } catch (e) {
-      console.error(e); toast.error('Error al enviar: ' + e.message)
+      console.error(e); toast.error('Error al preparar el envío: ' + e.message)
     } finally {
-      setSending(false); setProgress(null)
+      setPreparing(false)
     }
   }
 
@@ -259,15 +250,15 @@ export default function ProcesarView({ state, setState }) {
             <div className="actions">
               <button
                 className={'btn ' + (isDesktop ? 'btn-ghost' : 'btn-primary')}
-                disabled={busy || sending || selectedCols.length === 0}
+                disabled={busy || preparing || sendActive || selectedCols.length === 0}
                 onClick={handleGenerate}
               >
                 {busy ? <><Spinner /> Generando…</> : 'Descargar ZIP'}
               </button>
               {isDesktop && match.conCorreo.length > 0 && (
-                <button className="btn btn-primary" disabled={sending || busy} onClick={handleSend}>
-                  {sending
-                    ? <><Spinner light /> {progress ? `Enviando ${progress.current}/${progress.total}…` : 'Enviando…'}</>
+                <button className="btn btn-primary" disabled={preparing || sendActive || busy} onClick={handleSend}>
+                  {preparing
+                    ? <><Spinner light /> Preparando…</>
                     : `Enviar ${match.conCorreo.length} correo${match.conCorreo.length === 1 ? '' : 's'}`}
                 </button>
               )}

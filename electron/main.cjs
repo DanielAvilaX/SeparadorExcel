@@ -8,7 +8,7 @@ const log = (m) => { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}]
 log(`boot: process.type=${process.type} typeofElectron=${typeof electron} keys=${typeof electron === 'object' ? Object.keys(electron).join(',') : String(electron)}`)
 
 const { app, BrowserWindow, ipcMain, protocol } = electron
-const { sendViaOutlook } = require('./outlook.cjs')
+const { sendViaOutlook, cancelSend } = require('./outlook.cjs')
 
 const DIST = path.join(__dirname, '..', 'dist')
 
@@ -68,6 +68,7 @@ app.whenReady().then(() => {
   ipcMain.handle('outlook:send', async (event, payload) =>
     sendViaOutlook(payload, (progress) => event.sender.send('outlook:progress', progress))
   )
+  ipcMain.handle('outlook:cancel', () => { cancelSend(); return true })
 
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

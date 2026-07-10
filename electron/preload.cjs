@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('desktop', {
   isDesktop: true,
   // emails: [{ to:[], cc:[], subject, body, attachmentName, attachmentB64 }]
   sendEmails: (emails) => ipcRenderer.invoke('outlook:send', { emails }),
+  cancelSend: () => ipcRenderer.invoke('outlook:cancel'),
   onProgress: (cb) => {
     const handler = (_e, data) => cb(data)
     ipcRenderer.on('outlook:progress', handler)

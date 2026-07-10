@@ -4,27 +4,32 @@ import Nav from './components/Nav'
 import Login from './components/Login'
 import ToastHost from './components/ToastHost'
 import ConfirmHost from './components/ConfirmHost'
+import SendModal from './components/SendModal'
 import Spinner from './components/Spinner'
 import ProcesarView from './views/ProcesarView'
 import ProveedoresView from './views/ProveedoresView'
 import CcView from './views/CcView'
 import PlantillaView from './views/PlantillaView'
 import { supabase, isConfigured } from './lib/supabase'
+import { confirmDialog } from './lib/confirm'
+
+const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
+const EMPTY_SEND = {
+  active: false, total: 0, current: 0, provider: '', cooldown: false,
+  done: false, cancelled: false, cancelling: false, sent: [], failed: [], notSent: [], fatal: null,
+}
 
 export default function App() {
   const [theme, setTheme] = useState('light')
   const [view, setView] = useState('procesar')
-  const [session, setSession] = useState(undefined) // undefined = cargando
+  const [session, setSession] = useState(undefined)
+  const [send, setSend] = useState(EMPTY_SEND)
 
-  // Estado de "Procesar" elevado aquí para que sobreviva al cambio de pestaña
-  // (la vista se remonta por la animación; el archivo ya subido no se pierde).
   const [proc, setProc] = useState({
     typeKey: 'PACOM', parsed: null, file: null, prefix: '', selectedCols: [],
   })
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-  }, [theme])
+  useEffect(() => { document.documentElement.setAttribute('data-theme', theme) }, [theme])
 
   useEffect(() => {
     if (!isConfigured()) { setSession(null); return }
@@ -33,7 +38,41 @@ export default function App() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  // Con Supabase configurado exigimos login. Sin configurar (dev), se omite.
+  // Progreso del envío (llega del proceso de Electron; sobrevive cambios de pestaña)
+  useEffect(() => {
+    if (!isDesktop || !window.desktop.onProgress) return
+    return window.desktop.onProgress((p) => {
+      setSend((s) => {
+        if (!s.active || s.done) return s
+        if (p.type === 'cooldown') return { ...s, cooldown: true, current: p.current, total: p.total }
+        return { ...s, cooldown: false, current: p.current, total: p.total, provider: p.provider }
+      })
+    })
+  }, [])
+
+  async function runSend(emails) {
+    const targets = emails.map((e) => e.provider)
+    setSend({ ...EMPTY_SEND, active: true, total: emails.length })
+    const res = await window.desktop.sendEmails(emails)
+    const okSet = new Set((res.results || []).filter((r) => r.ok).map((r) => r.provider))
+    const failed = (res.results || []).filter((r) => !r.ok).map((r) => ({ provider: r.provider, message: r.message }))
+    const failedSet = new Set(failed.map((f) => f.provider))
+    const sent = targets.filter((p) => okSet.has(p))
+    const notSent = targets.filter((p) => !okSet.has(p) && !failedSet.has(p))
+    setSend((s) => ({ ...s, active: true, done: true, cancelled: !!res.cancelled, fatal: res.fatal || null, sent, failed, notSent, current: s.total }))
+  }
+
+  async function requestCancel() {
+    const ok = await confirmDialog({
+      title: 'Cancelar envío',
+      message: 'Se detendrá el envío después del correo en curso. Los correos ya enviados no se pueden deshacer.',
+      confirmText: 'Sí, cancelar', danger: true,
+    })
+    if (!ok) return
+    setSend((s) => ({ ...s, cancelling: true }))
+    window.desktop.cancelSend && window.desktop.cancelSend()
+  }
+
   const needsAuth = isConfigured()
   if (needsAuth && session === undefined) {
     return (
@@ -43,9 +82,7 @@ export default function App() {
       </>
     )
   }
-  if (needsAuth && !session) {
-    return <Login />
-  }
+  if (needsAuth && !session) return <Login />
 
   const userEmail = session?.user?.email
 
@@ -63,17 +100,18 @@ export default function App() {
         <Nav view={view} onChange={setView} />
 
         <div className="view" key={view}>
-          {view === 'procesar' && <ProcesarView state={proc} setState={setProc} />}
+          {view === 'procesar' && <ProcesarView state={proc} setState={setProc} runSend={runSend} sendActive={send.active} />}
           {view === 'proveedores' && <ProveedoresView />}
           {view === 'cc' && <CcView />}
           {view === 'plantilla' && <PlantillaView />}
         </div>
 
         <p className="note">
-          Separador &amp; Envío · Cruz Verde · el envío de correo se habilita tras la prueba de acceso de Microsoft
+          Separador &amp; Envío · Cruz Verde
         </p>
       </div>
 
+      {send.active && <SendModal send={send} onCancel={requestCancel} onClose={() => setSend(EMPTY_SEND)} />}
       <ToastHost />
       <ConfirmHost />
     </>

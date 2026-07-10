@@ -5,7 +5,7 @@ import { toast } from '../lib/toast'
 import { confirmDialog } from '../lib/confirm'
 import { isConfigured } from '../lib/supabase'
 import {
-  listProviders, addProvider, updateProvider, deleteProvider,
+  listProviders, addProvider, updateProvider, deleteProvider, deleteAllProviders,
   bulkUpsertProviders, parseProvidersFile, parseEmails, isEmail,
 } from '../lib/providers'
 import { downloadBlob } from '../lib/excel'
@@ -68,6 +68,19 @@ export default function ProveedoresView() {
     })
     if (!ok) return
     try { await deleteProvider(p.id); toast.success('Proveedor eliminado.'); await load() }
+    catch (e) { console.error(e); toast.error(e.message || 'Error al eliminar.') }
+  }
+
+  async function removeAll() {
+    if (rows.length === 0) return
+    const ok = await confirmDialog({
+      title: 'Eliminar TODOS los proveedores',
+      message: `Vas a eliminar los ${rows.length} proveedores de la base. Esta acción no se puede deshacer.`,
+      requireText: 'si quiero eliminar todos los proveedores',
+      confirmText: 'Eliminar todos', danger: true,
+    })
+    if (!ok) return
+    try { await deleteAllProviders(); toast.success('Todos los proveedores fueron eliminados.'); await load() }
     catch (e) { console.error(e); toast.error(e.message || 'Error al eliminar.') }
   }
 
@@ -174,7 +187,12 @@ export default function ProveedoresView() {
       <div className="glass">
         <div className="section-title">
           <h2>Lista de proveedores <span className="muted">({rows.length})</span></h2>
-          <input className="input" style={{ maxWidth: 260 }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar…" />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input className="input" style={{ maxWidth: 240 }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar…" />
+            {rows.length > 0 && (
+              <button className="mini del" style={{ padding: '9px 14px' }} onClick={removeAll}>Eliminar todos</button>
+            )}
+          </div>
         </div>
 
         {loading ? (

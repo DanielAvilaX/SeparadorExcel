@@ -46,6 +46,12 @@ export async function deleteProvider(id) {
   if (error) throw error
 }
 
+// Elimina TODOS los proveedores. El filtro (id no nulo) hace match con todas las filas.
+export async function deleteAllProviders() {
+  const { error } = await supabase.from('providers').delete().not('id', 'is', null)
+  if (error) throw error
+}
+
 // Carga masiva: upsert por nombre (coincidencia exacta).
 export async function bulkUpsertProviders(rows) {
   const { error } = await supabase

@@ -1,9 +1,16 @@
-param([string]$Manifest, [int]$DelayMs = 2500)
+param(
+  [string]$Manifest,
+  [int]$DelayMs = 2500,
+  [int]$CooldownEvery = 0,
+  [int]$CooldownMs = 0,
+  [string]$CancelFile = ""
+)
 
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
 function Emit($obj) { Write-Output ($obj | ConvertTo-Json -Compress) }
+function IsCancelled { return ($CancelFile -and (Test-Path -LiteralPath $CancelFile)) }
 
 # Leer el manifiesto (UTF-8) generado por la app
 try {
@@ -22,12 +29,13 @@ try {
   exit 1
 }
 
-# Un solo item no llega como arreglo: normalizar
 if ($items -isnot [System.Array]) { $items = @($items) }
 $total = $items.Count
 $i = 0
 
 foreach ($it in $items) {
+  if (IsCancelled) { Emit @{ type = 'cancelled'; sent = $i }; break }
+
   $i++
   Emit @{ type = 'progress'; index = $it.index; current = $i; total = $total; provider = $it.provider }
   try {
@@ -44,8 +52,22 @@ foreach ($it in $items) {
   } catch {
     Emit @{ type = 'result'; index = $it.index; provider = $it.provider; ok = $false; message = $_.Exception.Message }
   }
-  # Pausa entre envíos para no exceder el límite de ~30/min de Microsoft (anti-spam/throttling)
-  if ($i -lt $total -and $DelayMs -gt 0) { Start-Sleep -Milliseconds $DelayMs }
+
+  if ($i -lt $total) {
+    if (IsCancelled) { Emit @{ type = 'cancelled'; sent = $i }; break }
+    # Cada N correos, una pausa más larga (anti-spam / evitar bloqueos por ráfaga)
+    if ($CooldownEvery -gt 0 -and ($i % $CooldownEvery) -eq 0 -and $CooldownMs -gt 0) {
+      Emit @{ type = 'cooldown'; ms = $CooldownMs; current = $i; total = $total }
+      $waited = 0
+      while ($waited -lt $CooldownMs) {
+        if (IsCancelled) { break }
+        Start-Sleep -Milliseconds 500
+        $waited += 500
+      }
+    } elseif ($DelayMs -gt 0) {
+      Start-Sleep -Milliseconds $DelayMs
+    }
+  }
 }
 
 Emit @{ type = 'done'; total = $total }
