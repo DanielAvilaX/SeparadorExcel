@@ -1,4 +1,4 @@
-param([string]$Manifest)
+param([string]$Manifest, [int]$DelayMs = 2500)
 
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
@@ -44,6 +44,8 @@ foreach ($it in $items) {
   } catch {
     Emit @{ type = 'result'; index = $it.index; provider = $it.provider; ok = $false; message = $_.Exception.Message }
   }
+  # Pausa entre envíos para no exceder el límite de ~30/min de Microsoft (anti-spam/throttling)
+  if ($i -lt $total -and $DelayMs -gt 0) { Start-Sleep -Milliseconds $DelayMs }
 }
 
 Emit @{ type = 'done'; total = $total }
