@@ -87,6 +87,64 @@ function groupByProvider(rows, providerColumn) {
 }
 
 const THIN = { style: 'thin', color: { argb: 'FFBFD8C8' } }
+const THIN_BLACK = { style: 'thin', color: { argb: 'FF000000' } }
+const BOX = { top: THIN_BLACK, right: THIN_BLACK, bottom: THIN_BLACK, left: THIN_BLACK }
+
+// Colores del formato original (verde / naranja / azul de los encabezados)
+const FILL = {
+  green: 'FF00B050',
+  orange: 'FFFFC000',
+  blue: 'FFB4C7E7',
+  note: 'FFE2EFDA',
+}
+
+// Hoja "CONFIRMACION DESCUENTO". La estructura varía por tipo:
+//   PACOM      -> 2 filas de nota + encabezado + filas fijas (PACOM / DESCUENTO POS)
+//   DESCUENTOS -> 1 fila en blanco + encabezado + filas vacías para llenar
+function addConfirmacionSheet(wb, spec) {
+  const ws = wb.addWorksheet(spec.sheet)
+  const n = spec.headers.length
+
+  // Notas superiores
+  ;(spec.notes || []).forEach((text) => {
+    const row = ws.addRow([text])
+    for (let c = 1; c <= n; c++) {
+      row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL.note } }
+    }
+  })
+
+  // Filas en blanco antes del encabezado
+  for (let i = 0; i < (spec.blankBefore || 0); i++) ws.addRow([])
+
+  // Encabezado con sus colores
+  const hr = ws.addRow(spec.headers.map((h) => h.label))
+  hr.height = 34
+  spec.headers.forEach((h, i) => {
+    const cell = hr.getCell(i + 1)
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL[h.fill] } }
+    cell.font = { bold: true, color: { argb: h.fill === 'green' ? 'FFFFFFFF' : 'FF000000' } }
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+    cell.border = BOX
+  })
+
+  // Filas con etiqueta fija (ej. PACOM / DESCUENTO POS), resto vacío para que el proveedor llene
+  ;(spec.staticRows || []).forEach((vals) => {
+    const row = ws.addRow(vals)
+    row.getCell(1).font = { bold: true }
+    for (let c = 1; c <= n; c++) row.getCell(c).border = BOX
+  })
+
+  // Filas vacías con borde
+  for (let i = 0; i < (spec.emptyRows || 0); i++) {
+    const row = ws.addRow([])
+    for (let c = 1; c <= n; c++) row.getCell(c).border = BOX
+  }
+
+  spec.headers.forEach((h, i) => {
+    ws.getColumn(i + 1).width = h.width || Math.min(Math.max(h.label.length + 4, 14), 40)
+  })
+  return ws
+}
 
 // Encabezado verde Cruz Verde + negrita + centrado
 function styleHeaderRow(row) {
@@ -127,10 +185,11 @@ function money(n) {
   return '$ ' + Math.round(n).toLocaleString('en-US')
 }
 
-// Salida estándar (1 hoja con las columnas seleccionadas) — PACOM / Rotación.
-async function buildProviderWorkbook(providerRows, columns) {
+// Salida estándar — PACOM / Rotación. Si el tipo define hoja de confirmación, va primero.
+async function buildProviderWorkbook(providerRows, columns, type) {
   const wb = new ExcelJS.Workbook()
-  const ws = wb.addWorksheet('Datos')
+  if (type && type.confirmacion) addConfirmacionSheet(wb, type.confirmacion)
+  const ws = wb.addWorksheet((type && type.dataSheet) || 'Datos')
   ws.columns = columns.map((c) => ({ header: c, key: c }))
   providerRows.forEach((r) => {
     const obj = {}
@@ -143,17 +202,13 @@ async function buildProviderWorkbook(providerRows, columns) {
   return wb
 }
 
-// Salida Descuentos: 2 hojas (CONFIRMACION DESCUENTO en blanco + DEPURACION con total, encabezado y filas).
-async function buildDescuentosWorkbook(providerRows, output) {
+// Salida Descuentos: 2 hojas (CONFIRMACION DESCUENTO + DEPURACION con total, encabezado y filas).
+async function buildDescuentosWorkbook(providerRows, type) {
+  const output = type.output
   const wb = new ExcelJS.Workbook()
 
-  // Hoja 1: formulario de confirmación (solo encabezados)
-  const c = wb.addWorksheet(output.confirmacionSheet)
-  c.addRow(output.confirmacionColumns)
-  styleHeaderRow(c.getRow(1))
-  output.confirmacionColumns.forEach((name, i) => {
-    c.getColumn(i + 1).width = Math.max((name || '').length + 2, 16)
-  })
+  // Hoja 1: formulario de confirmación
+  if (type.confirmacion) addConfirmacionSheet(wb, type.confirmacion)
 
   // Hoja 2: depuración (fila de total + encabezado + filas del proveedor)
   const d = wb.addWorksheet(output.depuracionSheet)
@@ -188,8 +243,8 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
   for (const [provider, providerRows] of groups) {
     if (filter && !filter.has(provider)) continue
     const wb = type?.output?.mode === 'descuentos'
-      ? await buildDescuentosWorkbook(providerRows, type.output)
-      : await buildProviderWorkbook(providerRows, columns)
+      ? await buildDescuentosWorkbook(providerRows, type)
+      : await buildProviderWorkbook(providerRows, columns, type)
     const buffer = await wb.xlsx.writeBuffer()
     out.push({ provider, filename: `${prefix}${sanitize(provider)}.xlsx`, buffer })
   }
