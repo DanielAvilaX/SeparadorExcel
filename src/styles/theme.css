@@ -300,7 +300,35 @@ body {
 .grow { flex:1 1 220px; }
 
 /* ---- editor de cuerpo con imágenes ---- */
-.rich-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.rich-toolbar {
+  display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin-bottom:8px; padding:6px;
+  border-radius: 14px; background: var(--panel-glass); border:1px solid var(--panel-glass-brd);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); width:fit-content;
+}
+.icon-btn {
+  position:relative; display:grid; place-items:center; width:34px; height:32px; padding:0;
+  border:0; border-radius:9px; cursor:pointer; background:transparent; color:var(--ink-soft);
+  transition: background .15s, color .15s;
+}
+.icon-btn:hover { background: color-mix(in srgb, var(--cv-green) 14%, transparent); color: var(--ink); }
+.icon-btn.on { background: var(--chip-good-bg); color: var(--chip-good-ink); }
+.icon-btn:focus-visible { outline:2px solid var(--cv-green); outline-offset:1px; }
+.icon-btn .color-bar {
+  position:absolute; bottom:4px; left:8px; right:8px; height:3px; border-radius:2px; background: var(--cv-green);
+}
+.tb-sep { width:1px; height:20px; background: var(--panel-glass-brd); margin:0 3px; }
+
+.tb-pop-wrap { position:relative; display:inline-flex; }
+.size-pop {
+  position:absolute; top:38px; left:0; z-index:20; display:flex; flex-direction:column; min-width:96px;
+  padding:6px; border-radius:12px; background: var(--clay); border:1px solid var(--panel-glass-brd);
+  box-shadow: 8px 8px 22px var(--clay-lo), -4px -4px 12px var(--clay-hi);
+}
+.size-pop button {
+  border:0; background:transparent; text-align:left; padding:7px 10px; border-radius:8px; cursor:pointer;
+  font-family:inherit; font-size:13px; color:var(--ink);
+}
+.size-pop button:hover { background: color-mix(in srgb, var(--cv-green) 14%, transparent); }
 .rich-wrap { position:relative; }
 .rich-body {
   min-height:190px; max-height:460px; overflow-y:auto; padding:14px;
@@ -310,6 +338,8 @@ body {
 }
 .rich-body:focus-visible { outline:2px solid var(--cv-green); }
 .rich-body img { max-width:100%; height:auto; border-radius:6px; margin:4px 0; }
+.rich-body ul, .rich-body ol, .preview-body ul, .preview-body ol { padding-left:24px; margin:6px 0; }
+.rich-body p, .preview-body p { margin:6px 0; }
 .rich-placeholder {
   position:absolute; top:14px; left:14px; right:14px; pointer-events:none;
   color:var(--ink-faint); font-size:13.5px; line-height:1.6;

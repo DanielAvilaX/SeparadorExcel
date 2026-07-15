@@ -11,7 +11,10 @@ export default function PlantillaView() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Dónde se insertará la variable: en el asunto o en el cuerpo (lo último que se enfocó)
+  const [target, setTarget] = useState('cuerpo')
   const bodyRef = useRef(null)
+  const asuntoRef = useRef(null)
 
   useEffect(() => {
     if (!isConfigured()) { setLoading(false); return }
@@ -26,7 +29,19 @@ export default function PlantillaView() {
   }, [])
 
   function insertVar(token) {
-    if (bodyRef.current) bodyRef.current.insertText(token)
+    if (target === 'asunto') {
+      const inp = asuntoRef.current
+      const start = inp?.selectionStart ?? asunto.length
+      const end = inp?.selectionEnd ?? asunto.length
+      setAsunto(asunto.slice(0, start) + token + asunto.slice(end))
+      requestAnimationFrame(() => {
+        if (!inp) return
+        inp.focus()
+        inp.selectionStart = inp.selectionEnd = start + token.length
+      })
+    } else if (bodyRef.current) {
+      bodyRef.current.insertText(token)
+    }
   }
 
   async function save() {
@@ -54,7 +69,9 @@ export default function PlantillaView() {
           <>
             <div className="field" style={{ marginBottom: 16 }}>
               <label>Asunto</label>
-              <input className="input" value={asunto} onChange={(e) => setAsunto(e.target.value)}
+              <input ref={asuntoRef} className="input" value={asunto}
+                onChange={(e) => setAsunto(e.target.value)}
+                onFocus={() => setTarget('asunto')}
                 placeholder="Ej: Participación {{mes}} — {{proveedor}}" />
             </div>
 
@@ -64,14 +81,17 @@ export default function PlantillaView() {
                 ref={bodyRef}
                 value={cuerpo}
                 onChange={setCuerpo}
-                placeholder="Escribe el mensaje. Puedes pegar imágenes (Ctrl+V) e insertar variables como {{proveedor}}."
+                onFocus={() => setTarget('cuerpo')}
+                placeholder="Escribe el mensaje. Puedes dar formato, pegar imágenes (Ctrl+V) e insertar variables."
               />
             </div>
 
             <div className="hint" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span>Insertar variable:</span>
+              <span>Insertar variable en <b>{target === 'asunto' ? 'el asunto' : 'el cuerpo'}</b>:</span>
               {VARS.map((v) => (
-                <button key={v.token} type="button" className="chip g" title={v.label} onClick={() => insertVar(v.token)}>
+                <button key={v.token} type="button" className="chip g" title={v.label}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertVar(v.token)}>
                   {v.token}
                 </button>
               ))}

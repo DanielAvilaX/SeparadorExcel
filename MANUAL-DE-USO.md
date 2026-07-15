@@ -83,39 +83,63 @@ Es una lista global: aplica a todos los proveedores.
 
 El **asunto** y el **cuerpo** del correo que reciben los proveedores.
 
-**Variables** que se reemplazan solas en cada correo:
+#### Variables
+
+Se reemplazan solas en cada correo:
 
 | Variable | Se reemplaza por |
 |---|---|
 | `{{proveedor}}` | El nombre del proveedor |
-| `{{correos}}` | El/los correo(s) del proveedor |
 | `{{mes}}` | El mes actual |
+
+Puedes escribirlas a mano o usar los botones `{{proveedor}}` / `{{mes}}` que están debajo del cuerpo.
+
+> 💡 **Los botones insertan la variable donde estés escribiendo.** Si acabas de hacer clic en el
+> **Asunto**, la inserta en el asunto; si estabas en el **Cuerpo**, la inserta en el cuerpo.
+> El texto encima de los botones te dice dónde va a caer ("Insertar variable en **el asunto**…").
 
 **Ejemplo**
 - Asunto: `Archivos de {{mes}} — {{proveedor}}`
 - Cuerpo: `Buen día, adjunto el archivo correspondiente a {{mes}}. Quedo atenta. Gracias.`
 
-#### 🖼️ Imágenes en el cuerpo
+#### Dar formato al texto
 
-El cuerpo **acepta imágenes junto con el texto**. Tienes 3 formas de agregarlas:
+Arriba del cuerpo hay una **barra de herramientas**. Selecciona el texto y aplica:
 
-1. **Pegar** con `Ctrl + V` (por ejemplo, un recorte de pantalla o una imagen copiada).
-2. **Arrastrar** el archivo de imagen dentro del cuadro del cuerpo.
-3. Botón **🖼️ Insertar imagen** para buscarla en tu computador.
+| Botón | Qué hace |
+|---|---|
+| **B** | Negrita |
+| **I** | Cursiva |
+| **U** | Subrayado |
+| Lista | Viñetas |
+| Tamaño | Tamaño de la letra (8 a 36 pt) |
+| Color (A con barra) | Color de la letra |
+| Imagen | Insertar una imagen |
+| Borrador | Quitar el formato del texto seleccionado |
 
-Escribe el texto y coloca las imágenes donde las necesites: **se envían tal cual las ves**,
-incrustadas dentro del correo (no como archivos adjuntos sueltos).
+Así puedes dejar el correo como lo mandas hoy: títulos en **negrita**, palabras clave en **verde**
+(fechas, el mes), viñetas para los listados, etc.
 
-- Puedes **borrar** una imagen: haz clic sobre ella y presiona `Suprimir`.
+#### Imágenes en el cuerpo
+
+El cuerpo **acepta imágenes junto con el texto**. Tres formas de agregarlas:
+
+1. **Pegar** con `Ctrl + V` (un recorte de pantalla o una imagen copiada).
+2. **Arrastrar** el archivo de imagen dentro del cuadro.
+3. Botón de **imagen** en la barra, para buscarla en tu computador.
+
+Se envían **tal cual las ves**, incrustadas dentro del correo (no como archivos adjuntos sueltos).
+
+- Para **borrar** una imagen: haz clic sobre ella y presiona `Suprimir`.
 - Las imágenes muy grandes **se reducen automáticamente** para que el correo no pese de más.
-- El texto se pega **sin formato** (limpio), para evitar que se dañe el diseño al copiar de Word
-  u Outlook. Si quieres que se vea igual que en Outlook, pega la **imagen**.
+- El **texto** se pega **sin formato** (limpio), para evitar que se dañe el diseño al copiar de Word
+  u Outlook. Dale el formato con la barra de herramientas.
 
-> ℹ️ La imagen queda guardada **dentro de la plantilla**: se usa igual en todos los envíos,
-> no hay que volver a pegarla cada vez.
+> ℹ️ Todo (texto, formato e imágenes) queda guardado **dentro de la plantilla**: se usa igual en
+> todos los envíos, no hay que volver a armarlo cada vez.
 
-Abajo tienes una **Vista previa** que muestra el correo **tal como lo verá el proveedor**
-(con las imágenes y los datos de ejemplo). No olvides **Guardar plantilla**.
+Abajo tienes una **Vista previa** que muestra el correo **tal como lo verá el proveedor**.
+No olvides **Guardar plantilla**.
 
 ---
 

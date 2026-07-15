@@ -14,7 +14,6 @@ export async function saveTemplate({ asunto, cuerpo }) {
 // Variables disponibles en asunto/cuerpo.
 export const VARS = [
   { token: '{{proveedor}}', label: 'Nombre del proveedor', sample: 'BEIERSDORF SA' },
-  { token: '{{correos}}', label: 'Correo(s) del proveedor', sample: 'compras@beiersdorf.com' },
   { token: '{{mes}}', label: 'Mes actual', sample: 'agosto' },
 ]
 
