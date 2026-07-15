@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import Spinner from '../components/Spinner'
+import RichBody from '../components/RichBody'
 import { toast } from '../lib/toast'
 import { isConfigured } from '../lib/supabase'
-import { getTemplate, saveTemplate, VARS, render } from '../lib/template'
+import { getTemplate, saveTemplate, VARS, render, bodyToHtml } from '../lib/template'
 
 export default function PlantillaView() {
   const [asunto, setAsunto] = useState('')
@@ -10,24 +11,22 @@ export default function PlantillaView() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const cuerpoRef = useRef(null)
+  const bodyRef = useRef(null)
 
   useEffect(() => {
     if (!isConfigured()) { setLoading(false); return }
     getTemplate()
-      .then((t) => { setAsunto(t.asunto || ''); setCuerpo(t.cuerpo || '') })
+      .then((t) => {
+        setAsunto(t.asunto || '')
+        // Las plantillas viejas (texto plano) se migran a HTML al cargarlas
+        setCuerpo(bodyToHtml(t.cuerpo || ''))
+      })
       .catch((e) => { console.error(e); setError(e.message) })
       .finally(() => setLoading(false))
   }, [])
 
   function insertVar(token) {
-    const el = cuerpoRef.current
-    if (!el) { setCuerpo((c) => c + token); return }
-    const start = el.selectionStart ?? cuerpo.length
-    const end = el.selectionEnd ?? cuerpo.length
-    const next = cuerpo.slice(0, start) + token + cuerpo.slice(end)
-    setCuerpo(next)
-    requestAnimationFrame(() => { el.focus(); el.selectionStart = el.selectionEnd = start + token.length })
+    if (bodyRef.current) bodyRef.current.insertText(token)
   }
 
   async function save() {
@@ -61,8 +60,12 @@ export default function PlantillaView() {
 
             <div className="field">
               <label>Cuerpo</label>
-              <textarea ref={cuerpoRef} className="input" rows={9} value={cuerpo} onChange={(e) => setCuerpo(e.target.value)}
-                placeholder="Escribe aquí el mensaje. Puedes insertar variables como {{proveedor}}." style={{ resize: 'vertical', lineHeight: 1.5 }} />
+              <RichBody
+                ref={bodyRef}
+                value={cuerpo}
+                onChange={setCuerpo}
+                placeholder="Escribe el mensaje. Puedes pegar imágenes (Ctrl+V) e insertar variables como {{proveedor}}."
+              />
             </div>
 
             <div className="hint" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -89,9 +92,9 @@ export default function PlantillaView() {
         <div className="inset" style={{ marginBottom: 12 }}>
           <b style={{ marginRight: 8 }}>Asunto:</b> {render(asunto, sampleValues) || <span className="muted">— vacío —</span>}
         </div>
-        <div className="inset" style={{ whiteSpace: 'pre-wrap', display: 'block', minHeight: 80 }}>
-          {render(cuerpo, sampleValues) || <span className="muted">— vacío —</span>}
-        </div>
+        {cuerpo
+          ? <div className="preview-body" dangerouslySetInnerHTML={{ __html: render(cuerpo, sampleValues) }} />
+          : <div className="inset" style={{ display: 'block', minHeight: 80 }}><span className="muted">— vacío —</span></div>}
       </div>
     </>
   )

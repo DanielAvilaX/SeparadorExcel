@@ -43,7 +43,27 @@ foreach ($it in $items) {
     $mail.To = [string]$it.to
     if ($it.cc) { $mail.CC = [string]$it.cc }
     $mail.Subject = [string]$it.subject
-    $mail.Body = [string]$it.body
+
+    if ($it.bodyHtml) { $mail.HTMLBody = [string]$it.bodyHtml }
+    else { $mail.Body = [string]$it.body }
+
+    # Imágenes del cuerpo: se adjuntan y se marcan con su Content-ID para que
+    # se vean EN LÍNEA (no como archivos adjuntos sueltos).
+    if ($it.images) {
+      foreach ($img in $it.images) {
+        if (-not (Test-Path -LiteralPath $img.path)) { continue }
+        $att = $mail.Attachments.Add($img.path)
+        try {
+          $pa = $att.PropertyAccessor
+          # PR_ATTACH_CONTENT_ID
+          $pa.SetProperty("http://schemas.microsoft.com/mapi/proptag/0x3712001F", [string]$img.cid)
+          # PR_ATTACHMENT_HIDDEN (para que no aparezca en la lista de adjuntos)
+          $pa.SetProperty("http://schemas.microsoft.com/mapi/proptag/0x7FFE000B", $true)
+        } catch { }
+      }
+    }
+
+    # Adjunto principal (el Excel del proveedor)
     if ($it.attachment -and (Test-Path -LiteralPath $it.attachment)) {
       [void]$mail.Attachments.Add($it.attachment)
     }

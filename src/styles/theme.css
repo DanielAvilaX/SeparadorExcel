@@ -299,6 +299,30 @@ body {
 .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
 .grow { flex:1 1 220px; }
 
+/* ---- editor de cuerpo con imágenes ---- */
+.rich-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.rich-wrap { position:relative; }
+.rich-body {
+  min-height:190px; max-height:460px; overflow-y:auto; padding:14px;
+  border-radius: var(--r-sm); background: var(--clay); color: var(--ink);
+  font-family:inherit; font-size:13.5px; line-height:1.6; outline:none;
+  box-shadow: inset 4px 4px 9px var(--clay-lo), inset -4px -4px 9px var(--clay-hi);
+}
+.rich-body:focus-visible { outline:2px solid var(--cv-green); }
+.rich-body img { max-width:100%; height:auto; border-radius:6px; margin:4px 0; }
+.rich-placeholder {
+  position:absolute; top:14px; left:14px; right:14px; pointer-events:none;
+  color:var(--ink-faint); font-size:13.5px; line-height:1.6;
+}
+
+/* ---- vista previa del correo ---- */
+.preview-body {
+  padding:16px; border-radius: var(--r-sm); background:#fff; color:#201f1e;
+  font-family:Calibri,"Segoe UI",Arial,sans-serif; font-size:14px; line-height:1.6;
+  border:1px solid var(--panel-glass-brd); min-height:80px; overflow-x:auto;
+}
+.preview-body img { max-width:100%; height:auto; }
+
 /* ---- tabla ---- */
 .tbl-wrap { overflow-x:auto; }
 .tbl { width:100%; border-collapse:collapse; font-size:13.5px; }

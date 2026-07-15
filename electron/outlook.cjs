@@ -42,6 +42,12 @@ function sendViaOutlook(payload, onProgress) {
         attachment = path.join(dir, `adj_${i}_${sanitize(m.attachmentName)}`)
         fs.writeFileSync(attachment, Buffer.from(m.attachmentB64, 'base64'))
       }
+      // Imágenes del cuerpo: se guardan a disco y se adjuntan en línea (CID)
+      const images = (m.inlineImages || []).map((img, k) => {
+        const p = path.join(dir, `img_${i}_${k}_${sanitize(img.name)}`)
+        fs.writeFileSync(p, Buffer.from(img.b64, 'base64'))
+        return { cid: img.cid, path: p }
+      })
       return {
         index: i,
         provider: m.provider || '',
@@ -49,7 +55,9 @@ function sendViaOutlook(payload, onProgress) {
         cc: (m.cc || []).join(';'),
         subject: m.subject || '',
         body: m.body || '',
+        bodyHtml: m.bodyHtml || '',
         attachment,
+        images,
       }
     })
     const manifestPath = path.join(dir, 'manifest.json')

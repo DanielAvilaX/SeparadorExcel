@@ -8,7 +8,7 @@ import { getType } from '../lib/fileTypes'
 import { generateZip, downloadBlob, buildProviderFiles, arrayBufferToBase64 } from '../lib/excel'
 import { isConfigured } from '../lib/supabase'
 import { listProviders, listCc } from '../lib/providers'
-import { getTemplate, render } from '../lib/template'
+import { getTemplate, render, bodyToHtml, extractInlineImages, wrapEmailHtml } from '../lib/template'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 
@@ -100,12 +100,16 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
       const emails = targets.map((t) => {
         const f = fileMap.get(t.name)
         const vars = { proveedor: t.name, correos: t.emails.join(', '), mes }
+        // El cuerpo es HTML (puede traer imágenes pegadas): se extraen como imágenes
+        // en línea (CID) porque Outlook no renderiza base64 embebido.
+        const { html, images } = extractInlineImages(render(bodyToHtml(tpl.cuerpo), vars))
         return {
           provider: t.name,
           to: t.emails,
           cc: ccEmails,
           subject: render(tpl.asunto, vars),
-          body: render(tpl.cuerpo, vars),
+          bodyHtml: wrapEmailHtml(html),
+          inlineImages: images,
           attachmentName: f ? f.filename : `${t.name}.xlsx`,
           attachmentB64: f ? arrayBufferToBase64(f.buffer) : '',
         }

@@ -82,7 +82,8 @@ Es una lista global: aplica a todos los proveedores.
 ### 4.3 Pestaña **Plantilla**
 
 El **asunto** y el **cuerpo** del correo que reciben los proveedores.
-Puedes usar **variables** que se reemplazan solas en cada correo:
+
+**Variables** que se reemplazan solas en cada correo:
 
 | Variable | Se reemplaza por |
 |---|---|
@@ -94,7 +95,27 @@ Puedes usar **variables** que se reemplazan solas en cada correo:
 - Asunto: `Archivos de {{mes}} — {{proveedor}}`
 - Cuerpo: `Buen día, adjunto el archivo correspondiente a {{mes}}. Quedo atenta. Gracias.`
 
-Abajo tienes una **Vista previa** con datos de ejemplo. No olvides **Guardar plantilla**.
+#### 🖼️ Imágenes en el cuerpo
+
+El cuerpo **acepta imágenes junto con el texto**. Tienes 3 formas de agregarlas:
+
+1. **Pegar** con `Ctrl + V` (por ejemplo, un recorte de pantalla o una imagen copiada).
+2. **Arrastrar** el archivo de imagen dentro del cuadro del cuerpo.
+3. Botón **🖼️ Insertar imagen** para buscarla en tu computador.
+
+Escribe el texto y coloca las imágenes donde las necesites: **se envían tal cual las ves**,
+incrustadas dentro del correo (no como archivos adjuntos sueltos).
+
+- Puedes **borrar** una imagen: haz clic sobre ella y presiona `Suprimir`.
+- Las imágenes muy grandes **se reducen automáticamente** para que el correo no pese de más.
+- El texto se pega **sin formato** (limpio), para evitar que se dañe el diseño al copiar de Word
+  u Outlook. Si quieres que se vea igual que en Outlook, pega la **imagen**.
+
+> ℹ️ La imagen queda guardada **dentro de la plantilla**: se usa igual en todos los envíos,
+> no hay que volver a pegarla cada vez.
+
+Abajo tienes una **Vista previa** que muestra el correo **tal como lo verá el proveedor**
+(con las imágenes y los datos de ejemplo). No olvides **Guardar plantilla**.
 
 ---
 
@@ -207,6 +228,17 @@ y vuelve a **Procesar** — se recalcula solo.
 ### ⚠️ "No se pudo leer el archivo. ¿Es un Excel válido?"
 **Solución:** confirma que sea `.xlsx` o `.xls` y que **no esté abierto en Excel** al mismo tiempo.
 Ciérralo y vuelve a subirlo.
+
+### ⚠️ Las imágenes del cuerpo no se ven en el correo que llegó
+**Causa:** el proveedor tiene **bloqueada la descarga automática de imágenes** en su correo
+(es una configuración de él, muy común).
+**Solución:** normalmente le aparece un aviso tipo *"Haga clic aquí para descargar las imágenes"*.
+No es un problema de la app: las imágenes **sí van dentro** del correo. Puedes verificarlo abriendo
+el correo en tu carpeta **Elementos enviados**.
+
+### ⚠️ La plantilla no guarda o va muy lenta
+**Causa:** imágenes demasiado pesadas en el cuerpo.
+**Solución:** usa imágenes más livianas (recortes en vez de fotos completas) o menos imágenes.
 
 ### ⚠️ No carga la lista de proveedores / no puedo iniciar sesión
 **Causa:** sin internet o problema de conexión.
