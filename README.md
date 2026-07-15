@@ -7,7 +7,7 @@ corporativa. Reemplaza el proceso manual + macro.
 Stack: **Vite + React**, Supabase (base de proveedores + auth), Microsoft Graph (correo, Plan A),
 despliegue en **Vercel**. Estilo glassmorfismo + claymorfismo, blanco dominante con verde Cruz Verde.
 
-> Ver **[NOTAS-PROYECTO.md](NOTAS-PROYECTO.md)** para decisiones, pendientes y el plan por fases.
+> 📘 **[MANUAL-DE-USO.md](MANUAL-DE-USO.md)** — guía de uso para la usuaria final (paso a paso y solución de errores).
 
 ## Requisitos
 - Node 18+ (probado con Node 24).
