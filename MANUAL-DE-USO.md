@@ -83,6 +83,21 @@ Es una lista global: aplica a todos los proveedores.
 
 El **asunto** y el **cuerpo** del correo que reciben los proveedores.
 
+#### Puedes tener varias plantillas
+
+Puedes guardar **tantas plantillas como necesites** (por ejemplo: una para PACOM, otra para
+Rotación, otra para Descuentos) y **elegir cuál usar al momento de enviar**.
+
+- Arriba verás **Mis plantillas**: haz clic en una para editarla.
+- **+ Nueva plantilla** → crea una en blanco.
+- **Duplicar** → hace una copia de la actual (útil para partir de una que ya tienes).
+- **Eliminar** → borra la actual (siempre debe quedar al menos una).
+- Ponle un **Nombre** claro a cada una (ej. `PACOM mensual`), porque ese nombre es el que verás
+  al escoger cuál enviar.
+
+> ⚠️ Si editas una plantilla y no la guardas, verás la marca **"sin guardar"**. Si intentas
+> cambiar a otra plantilla, la app te avisa antes de perder los cambios.
+
 #### Variables
 
 Se reemplazan solas en cada correo:
@@ -116,6 +131,10 @@ Arriba del cuerpo hay una **barra de herramientas**. Selecciona el texto y aplic
 | Color (A con barra) | Color de la letra |
 | Imagen | Insertar una imagen |
 | Borrador | Quitar el formato del texto seleccionado |
+
+**Para cambiar el color:** selecciona el texto → clic en el botón de color → escoge un color
+(de los rápidos o del selector) → presiona **Cambiar**. El color **solo se aplica al presionar
+"Cambiar"**, así puedes probar sin miedo.
 
 Así puedes dejar el correo como lo mandas hoy: títulos en **negrita**, palabras clave en **verde**
 (fechas, el mes), viñetas para los listados, etc.
@@ -172,10 +191,13 @@ Si alguien está en amarillo y **sí** debería recibir:
 
 > Los proveedores en amarillo **no bloquean el envío**: puedes enviar a los verdes igual.
 
-### Paso 4 — Descargar o enviar
+### Paso 4 — Elige la plantilla y envía
+Antes de los botones verás **Plantilla del correo**: haz clic en la que quieras usar para este envío
+(la seleccionada queda marcada con **●** en verde). Se administran en la pestaña **Plantilla**.
+
 - **Descargar ZIP** → baja una carpeta comprimida con **un Excel por proveedor** (sin enviar correos).
-- **Enviar N correos** → envía a cada proveedor verde su archivo adjunto desde tu Outlook.
-  Te pide confirmación antes.
+- **Enviar N correos** → envía a cada proveedor verde su archivo adjunto desde tu Outlook,
+  usando la plantilla elegida. Te pide confirmación antes (y te recuerda cuál plantilla vas a usar).
 
 ### Paso 5 — Durante el envío
 Aparece una **ventana de progreso** con:

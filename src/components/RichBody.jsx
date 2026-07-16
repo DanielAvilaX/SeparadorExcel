@@ -20,6 +20,9 @@ function Icon({ d }) {
   )
 }
 
+// Colores rápidos (el primero es el verde Cruz Verde)
+const PRESETS = ['#00A651', '#00713A', '#000000', '#5B5B5B', '#C00000', '#0070C0', '#FF8A00', '#7030A0']
+
 // Tamaños de execCommand('fontSize') 1..7 con su equivalente aproximado
 const SIZES = [
   { v: 1, pt: '8 pt' }, { v: 2, pt: '10 pt' }, { v: 3, pt: '12 pt' },
@@ -62,6 +65,8 @@ const RichBody = forwardRef(function RichBody({ value, onChange, placeholder, on
   const savedRange = useRef(null)
   const [empty, setEmpty] = useState(true)
   const [sizeOpen, setSizeOpen] = useState(false)
+  const [colorOpen, setColorOpen] = useState(false)
+  const [color, setColor] = useState('#00A651')
 
   // Sincroniza solo cuando el valor viene de afuera (evita saltos del cursor al escribir)
   useEffect(() => {
@@ -179,13 +184,33 @@ const RichBody = forwardRef(function RichBody({ value, onChange, placeholder, on
           )}
         </span>
 
-        <button type="button" className="icon-btn" title="Color de letra"
-          onClick={() => { restoreSel(); colorRef.current.click() }}>
-          <Icon d={ICONS.color} />
-          <span className="color-bar" />
-        </button>
-        <input ref={colorRef} type="color" defaultValue="#00A651" style={{ display: 'none' }}
-          onChange={(e) => { restoreSel(); exec('foreColor', e.target.value) }} />
+        <span className="tb-pop-wrap">
+          <button type="button" className={'icon-btn' + (colorOpen ? ' on' : '')} title="Color de letra"
+            onClick={() => setColorOpen((v) => !v)}>
+            <Icon d={ICONS.color} />
+            <span className="color-bar" style={{ background: color }} />
+          </button>
+          {colorOpen && (
+            <div className="color-pop" onMouseDown={keep}>
+              <div className="swatches">
+                {PRESETS.map((c) => (
+                  <button key={c} type="button" title={c}
+                    className={'swatch' + (c.toLowerCase() === color.toLowerCase() ? ' on' : '')}
+                    style={{ background: c }} onClick={() => setColor(c)} />
+                ))}
+              </div>
+              <div className="color-row">
+                <input ref={colorRef} type="color" value={color}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onChange={(e) => setColor(e.target.value)} />
+                <button type="button" className="btn btn-primary color-apply"
+                  onClick={() => { restoreSel(); exec('foreColor', color); setColorOpen(false) }}>
+                  Cambiar
+                </button>
+              </div>
+            </div>
+          )}
+        </span>
 
         <span className="tb-sep" />
         <button type="button" className="icon-btn" title="Insertar imagen" onClick={() => fileRef.current.click()}>

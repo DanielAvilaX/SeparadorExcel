@@ -26,7 +26,7 @@ export default function App() {
   const [send, setSend] = useState(EMPTY_SEND)
 
   const [proc, setProc] = useState({
-    typeKey: 'PACOM', parsed: null, file: null, prefix: '', selectedCols: [],
+    typeKey: 'PACOM', parsed: null, file: null, prefix: '', selectedCols: [], templateId: null,
   })
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme) }, [theme])

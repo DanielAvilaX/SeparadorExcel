@@ -1,13 +1,39 @@
 import { supabase } from './supabase'
 
-export async function getTemplate() {
-  const { data, error } = await supabase.from('email_template').select('*').eq('id', 1).single()
+// -------- Plantillas (varias) --------
+
+export async function listTemplates() {
+  const { data, error } = await supabase.from('email_templates').select('*').order('nombre')
   if (error) throw error
   return data
 }
 
-export async function saveTemplate({ asunto, cuerpo }) {
-  const { error } = await supabase.from('email_template').update({ asunto, cuerpo }).eq('id', 1)
+export async function getTemplateById(id) {
+  const { data, error } = await supabase.from('email_templates').select('*').eq('id', id).single()
+  if (error) throw error
+  return data
+}
+
+export async function createTemplate({ nombre, asunto = '', cuerpo = '' }) {
+  const { data, error } = await supabase
+    .from('email_templates')
+    .insert({ nombre: nombre.trim(), asunto, cuerpo })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateTemplate(id, { nombre, asunto, cuerpo }) {
+  const { error } = await supabase
+    .from('email_templates')
+    .update({ nombre: nombre.trim(), asunto, cuerpo, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteTemplate(id) {
+  const { error } = await supabase.from('email_templates').delete().eq('id', id)
   if (error) throw error
 }
 

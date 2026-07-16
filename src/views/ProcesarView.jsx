@@ -8,29 +8,37 @@ import { getType } from '../lib/fileTypes'
 import { generateZip, downloadBlob, buildProviderFiles, arrayBufferToBase64 } from '../lib/excel'
 import { isConfigured } from '../lib/supabase'
 import { listProviders, listCc } from '../lib/providers'
-import { getTemplate, render, bodyToHtml, extractInlineImages, wrapEmailHtml } from '../lib/template'
+import { listTemplates, render, bodyToHtml, extractInlineImages, wrapEmailHtml } from '../lib/template'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 
 export default function ProcesarView({ state, setState, runSend, sendActive }) {
-  const { typeKey, parsed, file, prefix, selectedCols } = state
+  const { typeKey, parsed, file, prefix, selectedCols, templateId } = state
   const patch = (p) => setState((s) => ({ ...s, ...p }))
 
   const [db, setDb] = useState([])
   const [dbLoaded, setDbLoaded] = useState(false)
+  const [templates, setTemplates] = useState([])
   const [busy, setBusy] = useState(false)
   const [preparing, setPreparing] = useState(false)
 
   const type = getType(typeKey)
 
   // Se ejecuta en cada montaje (incluido al volver a la pestaña) → refresca la base
-  // para reflejar proveedores agregados/editados sin re-subir el archivo.
+  // para reflejar proveedores/plantillas sin re-subir el archivo.
   useEffect(() => {
     if (!isConfigured()) { setDbLoaded(true); return }
     listProviders()
       .then((rows) => setDb(rows))
       .catch((e) => console.error('No se pudo cargar proveedores:', e.message))
       .finally(() => setDbLoaded(true))
+    listTemplates()
+      .then((rows) => {
+        setTemplates(rows)
+        // Si la plantilla elegida ya no existe (o no hay), toma la primera
+        if (rows.length && !rows.some((r) => r.id === templateId)) patch({ templateId: rows[0].id })
+      })
+      .catch((e) => console.error('No se pudieron cargar plantillas:', e.message))
   }, [])
 
   const dbIndex = useMemo(() => {
@@ -78,16 +86,18 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
   async function handleSend() {
     const targets = match ? match.conCorreo : []
     if (!targets.length) return
+    const tpl = templates.find((t) => t.id === templateId)
+    if (!tpl) return toast.error('Elige una plantilla antes de enviar.')
     const ok = await confirmDialog({
       title: 'Enviar correos',
-      message: `Se enviarán ${targets.length} correos desde tu Outlook — uno por proveedor con su archivo adjunto. ¿Continuar?`,
+      message: `Se enviarán ${targets.length} correos desde tu Outlook usando la plantilla "${tpl.nombre}", uno por proveedor con su archivo adjunto. ¿Continuar?`,
       confirmText: `Enviar ${targets.length}`,
     })
     if (!ok) return
 
     setPreparing(true)
     try {
-      const [tpl, cc] = await Promise.all([getTemplate(), listCc()])
+      const cc = await listCc()
       const ccEmails = cc.map((c) => c.email)
       const mes = new Date().toLocaleDateString('es', { month: 'long' })
 
@@ -244,9 +254,31 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
               </>
             )}
 
+            {isDesktop && match.conCorreo.length > 0 && (
+              <div className="field" style={{ marginTop: 18 }}>
+                <label>Plantilla del correo</label>
+                {templates.length === 0 ? (
+                  <p className="hint" style={{ marginTop: 0 }}>
+                    No hay plantillas. Crea una en la pestaña <b>Plantilla</b>.
+                  </p>
+                ) : (
+                  <div className="chips" style={{ maxHeight: 'none' }}>
+                    {templates.map((t) => (
+                      <button key={t.id} type="button"
+                        className={'chip ' + (t.id === templateId ? 'g' : 'w')}
+                        disabled={sendActive}
+                        onClick={() => patch({ templateId: t.id })}>
+                        {t.id === templateId ? '● ' : ''}{t.nombre}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {isDesktop ? (
               <p className="hint">
-                Cada proveedor recibirá su archivo adjunto por correo, desde tu Outlook, con el asunto y cuerpo de la <b>Plantilla</b> y la <b>Copia (CC)</b> configurada.
+                Cada proveedor recibirá su archivo adjunto por correo, desde tu Outlook, con la plantilla elegida y la <b>Copia (CC)</b> configurada.
               </p>
             ) : (
               <p className="hint">El envío por correo está disponible en la <b>app de escritorio</b>. Aquí (web) puedes descargar el ZIP con un Excel por proveedor.</p>

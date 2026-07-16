@@ -329,6 +329,25 @@ body {
   font-family:inherit; font-size:13px; color:var(--ink);
 }
 .size-pop button:hover { background: color-mix(in srgb, var(--cv-green) 14%, transparent); }
+
+.color-pop {
+  position:absolute; top:38px; left:0; z-index:20; width:186px; padding:10px;
+  border-radius:12px; background: var(--clay); border:1px solid var(--panel-glass-brd);
+  box-shadow: 8px 8px 22px var(--clay-lo), -4px -4px 12px var(--clay-hi);
+}
+.color-pop .swatches { display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:10px; }
+.color-pop .swatch {
+  height:26px; border-radius:7px; border:2px solid transparent; cursor:pointer; padding:0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+}
+.color-pop .swatch.on { border-color: var(--ink); }
+.color-pop .swatch:focus-visible { outline:2px solid var(--cv-green); outline-offset:1px; }
+.color-pop .color-row { display:flex; gap:8px; align-items:center; }
+.color-pop input[type="color"] {
+  width:40px; height:34px; padding:0; border:1px solid var(--panel-glass-brd);
+  border-radius:8px; background:transparent; cursor:pointer; flex:none;
+}
+.color-apply { flex:1; padding:9px 12px; font-size:13px; border-radius:10px; }
 .rich-wrap { position:relative; }
 .rich-body {
   min-height:190px; max-height:460px; overflow-y:auto; padding:14px;
