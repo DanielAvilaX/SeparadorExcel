@@ -1,10 +1,12 @@
+import logo from '../../assets/logo-separador.png'
+
 export default function TopBar({ theme, onToggle, userEmail, onLogout }) {
   const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'MM'
   const label = userEmail || 'María Morales'
   return (
     <header className="bar">
       <div className="brand">
-        <div className="mark" aria-hidden="true"></div>
+        <img className="mark" src={logo} alt="" aria-hidden="true" />
         <div>
           <h1>Separador &amp; Envío · Cruz Verde</h1>
           <p>Divide por proveedor y envía cada archivo a su correo</p>

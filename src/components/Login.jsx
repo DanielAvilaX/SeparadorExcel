@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import logo from '../../assets/logo-separador.png'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -22,7 +23,7 @@ export default function Login() {
       <div className="login-wrap">
         <form className="glass login-card" onSubmit={submit}>
           <div className="brand" style={{ justifyContent: 'center', marginBottom: 20 }}>
-            <div className="mark" aria-hidden="true" />
+            <img className="mark" src={logo} alt="" aria-hidden="true" />
             <div>
               <h1>Separador &amp; Envío</h1>
               <p>Ingresa para continuar</p>

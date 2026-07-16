@@ -27,6 +27,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1120, height: 820, minWidth: 820, minHeight: 600,
     title: 'Separador & Envío · Cruz Verde',
+    icon: path.join(__dirname, '..', 'assets', 'icon.ico'),
     backgroundColor: '#EDF2EF',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
