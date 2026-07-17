@@ -282,6 +282,78 @@ body {
 }
 .nav button:focus-visible { outline:3px solid var(--cv-green); outline-offset:2px; }
 
+/* ---- sub-pestañas de Proveedores (por tipo) ---- */
+.ptabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.ptabs button {
+  font-family:inherit; font-size:13.5px; font-weight:600; cursor:pointer; color:var(--ink-soft);
+  border:1px solid transparent; background:transparent; padding:9px 15px; border-radius:40px;
+  display:flex; align-items:center; gap:8px; transition:.15s;
+}
+.ptabs button:hover { color:var(--ink); }
+.ptabs button.on {
+  color:var(--chip-good-ink); background:var(--panel-glass); border-color:var(--panel-glass-brd);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-glass);
+}
+.ptabs button:focus-visible { outline:3px solid var(--cv-green); outline-offset:2px; }
+.tab-count {
+  font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:20px; font-variant-numeric:tabular-nums;
+  background: color-mix(in srgb, var(--ink-faint) 16%, transparent); color:var(--ink-soft);
+}
+.ptabs button.on .tab-count { background: var(--chip-good-bg); color: var(--chip-good-ink); }
+
+/* Animación al cambiar de pestaña (aire de "hoja que pasa") */
+@media (prefers-reduced-motion: no-preference) {
+  .ptab-panel { animation: tabSlide .4s cubic-bezier(.34, 1.56, .64, 1) both; }
+}
+@keyframes tabSlide { from { opacity:0; transform: translateX(28px); } to { opacity:1; transform:none; } }
+
+/* Lista de proveedores por tipo + interruptor */
+.prov-list { display:flex; flex-direction:column; gap:8px; max-height:62vh; overflow-y:auto; padding-right:4px; }
+.prov-row {
+  display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:14px;
+  background: color-mix(in srgb, var(--clay) 68%, transparent); border:1px solid transparent;
+  transition: background .15s, border-color .15s;
+}
+.prov-row.on { background: var(--chip-good-bg); border-color: color-mix(in srgb, var(--cv-green) 30%, transparent); }
+.pr-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.pr-info b { font-size:14px; }
+.pr-mail { font-size:12px; color:var(--ink-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.switch {
+  width:46px; height:26px; border-radius:20px; border:0; padding:0; flex:none; cursor:pointer; position:relative;
+  background: color-mix(in srgb, var(--ink-faint) 40%, transparent); transition: background .18s;
+}
+.switch .knob {
+  position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.3); transition: left .18s cubic-bezier(.34,1.56,.64,1);
+}
+.switch.on { background: var(--cv-green); }
+.switch.on .knob { left:23px; }
+.switch:focus-visible { outline:3px solid var(--cv-green); outline-offset:2px; }
+
+/* Grupo "No participa en este tipo" en la revisión */
+.no-participa { margin-top:16px; border-radius:14px; background: color-mix(in srgb, var(--ink-faint) 8%, transparent); padding:12px 16px; }
+.no-participa summary { cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; list-style:none; }
+.no-participa summary::-webkit-details-marker { display:none; }
+.no-participa summary .dot { width:9px; height:9px; border-radius:50%; background:var(--ink-faint); }
+.no-participa summary .count { font-size:12px; padding:2px 9px; border-radius:20px; background: color-mix(in srgb, var(--ink-faint) 18%, transparent); color:var(--ink-soft); }
+.chip.gray { background: color-mix(in srgb, var(--ink-faint) 16%, transparent); color: var(--ink-soft); }
+
+/* ---- Plantillas: lista lateral + editor ---- */
+.tpl-layout { display:grid; grid-template-columns: 288px 1fr; gap:16px; align-items:start; }
+@media (max-width:820px){ .tpl-layout { grid-template-columns:1fr; } }
+.tpl-list { position:sticky; top:16px; }
+.tpl-items { display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow-y:auto; padding-right:2px; }
+.tpl-card {
+  text-align:left; border:1px solid transparent; border-radius:14px; padding:12px 14px; cursor:pointer;
+  display:flex; flex-direction:column; gap:4px; font-family:inherit;
+  background: color-mix(in srgb, var(--clay) 68%, transparent); transition: background .15s, border-color .15s;
+}
+.tpl-card:hover { background: color-mix(in srgb, var(--cv-green) 8%, transparent); }
+.tpl-card.on { background: var(--chip-good-bg); border-color: color-mix(in srgb, var(--cv-green) 32%, transparent); }
+.tpl-card b { font-size:14px; color:var(--ink); }
+.tpl-snip { font-size:12px; color:var(--ink-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tpl-editor { min-width:0; }
+
 /* ---- formularios ---- */
 .input {
   width:100%; padding:12px 14px; border-radius:var(--r-sm); background:var(--clay); color:var(--ink);

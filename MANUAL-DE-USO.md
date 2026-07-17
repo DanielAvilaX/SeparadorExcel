@@ -70,6 +70,25 @@ Aquí vive la lista de a quién se le envía cada archivo. **Es la parte más im
 
 **Editar / Eliminar:** botones en cada fila. Al **Editar**, los datos suben al formulario de arriba.
 
+#### ¿A qué archivo se le envía a cada proveedor? (pestañas por tipo)
+
+Cada archivo (PACOM, Rotación, Descuentos) suele ir a **proveedores distintos**, aunque un mismo
+proveedor aparezca en varios archivos. Para manejarlo, arriba de la lista hay **pestañas**:
+
+- **Todos** → la gestión normal (agregar / editar / eliminar).
+- **PACOM · Rotación · Descuentos** → cada una muestra **quién recibe ese tipo**. El número en la
+  pestaña te dice cuántos van (ej. *Descuentos · 7*).
+
+Dentro de una pestaña de tipo:
+- Cada proveedor tiene un **interruptor**: verde = recibe ese tipo, gris = no.
+- **Marcar todos / Quitar todos** para configurar rápido (si buscaste algo, aplica a lo que ves).
+- **Ejemplo (Descuentos van solo 7):** entra a la pestaña **Descuentos** → **Quitar todos** →
+  enciende los 7 que sí reciben. Listo, queda guardado. **No tienes que apagar decenas uno por uno.**
+
+> Los proveedores nuevos entran participando en los 3 tipos. Apágalos donde no apliquen.
+> En la pantalla de envío, los excluidos de ese tipo aparecen aparte como **"No participan"**
+> (no es un error: es que los apagaste a propósito).
+
 **Eliminar todos:** borra la lista completa. Por seguridad te pide **escribir a mano** la frase
 `si quiero eliminar todos los proveedores` (**no permite copiar y pegar**).
 Úsalo solo si vas a recargar la lista desde cero.
@@ -88,7 +107,8 @@ El **asunto** y el **cuerpo** del correo que reciben los proveedores.
 Puedes guardar **tantas plantillas como necesites** (por ejemplo: una para PACOM, otra para
 Rotación, otra para Descuentos) y **elegir cuál usar al momento de enviar**.
 
-- Arriba verás **Mis plantillas**: haz clic en una para editarla.
+- A la **izquierda** verás la lista **Mis plantillas** (con un fragmento de cada una): haz clic en
+  una para editarla a la derecha.
 - **+ Nueva plantilla** → crea una en blanco.
 - **Duplicar** → hace una copia de la actual (útil para partir de una que ya tienes).
 - **Eliminar** → borra la actual (siempre debe quedar al menos una).

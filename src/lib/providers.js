@@ -29,11 +29,24 @@ export async function listProviders() {
 export async function addProvider({ nombre, emails, activo = true }) {
   const { data, error } = await supabase
     .from('providers')
-    .insert({ nombre: nombre.trim(), emails, activo })
+    .insert({ nombre: nombre.trim(), emails, activo }) // por defecto participa en los 3 tipos
     .select()
     .single()
   if (error) throw error
   return data
+}
+
+// Actualiza el flag de un tipo (envia_pacom / envia_rotacion / envia_descuentos)
+export async function setTypeFlag(id, flag, value) {
+  const { error } = await supabase.from('providers').update({ [flag]: value }).eq('id', id)
+  if (error) throw error
+}
+
+// Marca/desmarca el flag de un tipo para varios proveedores a la vez
+export async function setTypeFlagMany(ids, flag, value) {
+  if (!ids.length) return
+  const { error } = await supabase.from('providers').update({ [flag]: value }).in('id', ids)
+  if (error) throw error
 }
 
 export async function updateProvider(id, patch) {

@@ -49,15 +49,19 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
 
   const match = useMemo(() => {
     if (!parsed || !parsed.providerColExists) return null
+    const flag = type.flag
     const conCorreo = []
     const sinCorreo = []
+    const noParticipa = []
     for (const name of parsed.providers) {
       const p = dbIndex.get(name)
-      if (p && p.activo && (p.emails || []).length > 0) conCorreo.push({ name, emails: p.emails })
-      else sinCorreo.push({ name, reason: !p ? 'no está en la base' : !p.activo ? 'inactivo' : 'sin correo' })
+      if (!p) { sinCorreo.push({ name, reason: 'no está en la base' }); continue }
+      if (flag && p[flag] === false) { noParticipa.push({ name }); continue }
+      if (p.activo && (p.emails || []).length > 0) conCorreo.push({ name, emails: p.emails })
+      else sinCorreo.push({ name, reason: !p.activo ? 'inactivo' : 'sin correo' })
     }
-    return { conCorreo, sinCorreo }
-  }, [parsed, dbIndex])
+    return { conCorreo, sinCorreo, noParticipa }
+  }, [parsed, dbIndex, type])
 
   function selectType(key) { patch({ typeKey: key, parsed: null, file: null, selectedCols: [] }) }
   function onParsed(p, f) { patch({ parsed: p, file: f, selectedCols: p.columns }) }
@@ -250,6 +254,23 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
                     Los de la derecha <b>no recibirán correo</b>. Agrégalos en <b>Proveedores</b> y al volver a esta
                     pestaña se recalcula solo (sin re-subir el archivo). No bloquea la descarga.
                   </div>
+                )}
+
+                {match.noParticipa.length > 0 && (
+                  <details className="no-participa">
+                    <summary>
+                      <span className="dot" /> No participan en <b>{type.label}</b>
+                      <span className="count">{match.noParticipa.length}</span>
+                      <span className="muted"> · excluidos a propósito</span>
+                    </summary>
+                    <div className="chips" style={{ marginTop: 12 }}>
+                      {match.noParticipa.map((p) => <span key={p.name} className="chip gray">{p.name}</span>)}
+                    </div>
+                    <p className="hint" style={{ marginTop: 10 }}>
+                      Están en el archivo pero los apagaste para {type.label} en <b>Proveedores</b>. Si alguno debería
+                      recibir, enciéndelo allí y vuelve aquí.
+                    </p>
+                  </details>
                 )}
               </>
             )}
