@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import TypeSelector from '../components/TypeSelector'
 import Uploader from '../components/Uploader'
 import Spinner from '../components/Spinner'
+import HoverPreview from '../components/HoverPreview'
+import TemplatePreview from '../components/TemplatePreview'
 import { toast } from '../lib/toast'
 import { confirmDialog } from '../lib/confirm'
 import { getType } from '../lib/fileTypes'
@@ -283,16 +285,21 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
                     No hay plantillas. Crea una en la pestaña <b>Plantilla</b>.
                   </p>
                 ) : (
-                  <div className="chips" style={{ maxHeight: 'none' }}>
-                    {templates.map((t) => (
-                      <button key={t.id} type="button"
-                        className={'chip ' + (t.id === templateId ? 'g' : 'w')}
-                        disabled={sendActive}
-                        onClick={() => patch({ templateId: t.id })}>
-                        {t.id === templateId ? '● ' : ''}{t.nombre}
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <div className="chips" style={{ maxHeight: 'none' }}>
+                      {templates.map((t) => (
+                        <HoverPreview key={t.id} content={<TemplatePreview tpl={t} />}>
+                          <button type="button"
+                            className={'chip ' + (t.id === templateId ? 'g' : 'w')}
+                            disabled={sendActive}
+                            onClick={() => patch({ templateId: t.id })}>
+                            {t.id === templateId ? '● ' : ''}{t.nombre}
+                          </button>
+                        </HoverPreview>
+                      ))}
+                    </div>
+                    <p className="hint" style={{ marginTop: 6 }}>Pasa el mouse sobre una plantilla para ver su contenido.</p>
+                  </>
                 )}
               </div>
             )}

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Spinner from '../components/Spinner'
 import RichBody from '../components/RichBody'
+import HoverPreview from '../components/HoverPreview'
+import TemplatePreview from '../components/TemplatePreview'
 import { toast } from '../lib/toast'
 import { confirmDialog } from '../lib/confirm'
 import { isConfigured } from '../lib/supabase'
@@ -8,13 +10,6 @@ import {
   listTemplates, createTemplate, updateTemplate, deleteTemplate,
   VARS, render, bodyToHtml,
 } from '../lib/template'
-
-function snippet(html) {
-  const d = document.createElement('div')
-  d.innerHTML = html || ''
-  const t = (d.textContent || '').replace(/\s+/g, ' ').trim()
-  return t ? (t.length > 70 ? t.slice(0, 70) + '…' : t) : 'Sin contenido'
-}
 
 export default function PlantillaView() {
   const [items, setItems] = useState([])
@@ -133,14 +128,16 @@ export default function PlantillaView() {
             </div>
             <div className="tpl-items">
               {items.map((t) => (
-                <button key={t.id} type="button"
-                  className={'tpl-card' + (t.id === selId ? ' on' : '')}
-                  onClick={() => selectTemplate(t)}>
-                  <b>{t.nombre}{t.id === selId && dirty ? ' •' : ''}</b>
-                  <span className="tpl-snip">{snippet(t.cuerpo)}</span>
-                </button>
+                <HoverPreview key={t.id} block content={<TemplatePreview tpl={t} />}>
+                  <button type="button"
+                    className={'tpl-card' + (t.id === selId ? ' on' : '')}
+                    onClick={() => selectTemplate(t)}>
+                    <b>{t.nombre}{t.id === selId && dirty ? ' •' : ''}</b>
+                  </button>
+                </HoverPreview>
               ))}
             </div>
+            <p className="hint" style={{ margin: '4px 2px 0' }}>Pasa el mouse sobre una para ver su contenido.</p>
             <button className="btn btn-ghost" type="button" onClick={nueva} style={{ width: '100%', marginTop: 12 }}>
               + Nueva plantilla
             </button>

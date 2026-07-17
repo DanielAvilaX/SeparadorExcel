@@ -85,6 +85,9 @@ export function extractInlineImages(html) {
   return { html: doc.body.innerHTML, images }
 }
 
+// Valores de ejemplo para las vistas previas.
+export const SAMPLE = { proveedor: 'BEIERSDORF SA', correos: 'compras@beiersdorf.com', mes: 'agosto' }
+
 // Envuelve el cuerpo en un HTML de correo simple y legible.
 export function wrapEmailHtml(inner) {
   return `<html><body style="font-family:Calibri,Segoe UI,Arial,sans-serif;font-size:11pt;color:#201f1e;">${inner}</body></html>`
