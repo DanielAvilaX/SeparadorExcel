@@ -107,13 +107,16 @@ El **asunto** y el **cuerpo** del correo que reciben los proveedores.
 Puedes guardar **tantas plantillas como necesites** (por ejemplo: una para PACOM, otra para
 Rotación, otra para Descuentos) y **elegir cuál usar al momento de enviar**.
 
-- A la **izquierda** verás la lista **Mis plantillas** (con un fragmento de cada una): haz clic en
-  una para editarla a la derecha.
+- A la **izquierda** verás la lista **Mis plantillas**: haz clic en una para editarla a la derecha.
 - **+ Nueva plantilla** → crea una en blanco.
 - **Duplicar** → hace una copia de la actual (útil para partir de una que ya tienes).
 - **Eliminar** → borra la actual (siempre debe quedar al menos una).
 - Ponle un **Nombre** claro a cada una (ej. `PACOM mensual`), porque ese nombre es el que verás
   al escoger cuál enviar.
+
+> 👁️ **Vista previa rápida:** deja el mouse **quieto ~1 segundo** sobre cualquier plantilla (aquí o
+> en la pantalla de envío) y aparece una **burbuja** con su contenido completo. Puedes **mover el
+> mouse hacia la burbuja y hacer scroll** para leerlo todo. Así sabes qué dice cada una sin abrirla.
 
 > ⚠️ Si editas una plantilla y no la guardas, verás la marca **"sin guardar"**. Si intentas
 > cambiar a otra plantilla, la app te avisa antes de perder los cambios.
