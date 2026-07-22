@@ -93,10 +93,39 @@ Dentro de una pestaña de tipo:
 `si quiero eliminar todos los proveedores` (**no permite copiar y pegar**).
 Úsalo solo si vas a recargar la lista desde cero.
 
-### 4.2 Pestaña **Copia (CC)**
+### 4.2 Pestaña **Copias (CC)**
 
-Los correos que van **en copia en todos los envíos** (por ejemplo tu jefe o el buzón del área).
-Es una lista global: aplica a todos los proveedores.
+Los correos en copia se manejan como **configuraciones con nombre** (ej. `General`, `CC PACOM dermo`),
+porque no siempre se copia a las mismas personas: puede cambiar **según el proveedor y según el tipo
+de archivo**.
+
+**Crear y editar configuraciones**
+- A la **izquierda** está la lista de configuraciones; haz clic en una para editar su **nombre** y sus
+  **correos** (varios separados por `;`).
+- **+ Nueva configuración** → crea otra.
+- La configuración **General** es la base de todo y **no se puede eliminar** (sí puedes cambiarle los correos).
+- 🚫 **Duplicados bloqueados:** si intentas guardar una configuración con **exactamente los mismos
+  correos** que otra, la app no la crea y te dice cuál es: *"Ya existe una configuración con esos
+  mismos correos: 'CC PACOM dermo'"*. Usa esa.
+- Al **eliminar** una configuración que está en uso, la app te dice cuántos proveedores la usan;
+  esos proveedores vuelven a su copia por defecto.
+
+**¿Qué copia se usa al enviar? (en este orden)**
+1. La copia asignada **a ese proveedor para ese tipo** (la excepción), si tiene.
+2. Si no → la **copia por defecto del tipo** (se elige abajo en esta misma pestaña:
+   *"PACOM usa por defecto: …"*).
+3. Si no → la **General**.
+
+Así **solo configuras las excepciones**; todo lo demás sale solo.
+
+**Asignar la copia de un proveedor (excepciones):** ve a **Proveedores** → pestaña del tipo
+(PACOM/Rotación/Descuentos) → cada fila tiene un selector **"CC: …"**. Normalmente dice
+*"CC: por defecto"*; cámbialo solo en los proveedores que llevan otra copia para ese tipo.
+También puedes asignar una copia **a varios a la vez** (buscas, eliges la configuración y
+*"Asignar esa copia a los visibles"*).
+
+> 👁️ **Verificación antes de enviar:** en la pantalla de envío, pasa el mouse sobre un proveedor
+> en verde y verás **a quién va** el correo y **con qué copia**.
 
 ### 4.3 Pestaña **Plantilla**
 

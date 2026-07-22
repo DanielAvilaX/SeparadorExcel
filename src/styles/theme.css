@@ -329,6 +329,12 @@ body {
 .switch.on { background: var(--cv-green); }
 .switch.on .knob { left:23px; }
 .switch:focus-visible { outline:3px solid var(--cv-green); outline-offset:2px; }
+.cc-select {
+  font-family:inherit; font-size:12px; font-weight:600; color:var(--ink-soft);
+  border:1px solid var(--panel-glass-brd); background: var(--clay); border-radius:10px;
+  padding:6px 8px; max-width:180px; cursor:pointer; flex:none;
+}
+.cc-select:focus-visible { outline:2px solid var(--cv-green); }
 
 /* Grupo "No participa en este tipo" en la revisión */
 .no-participa { margin-top:16px; border-radius:14px; background: color-mix(in srgb, var(--ink-faint) 8%, transparent); padding:12px 16px; }

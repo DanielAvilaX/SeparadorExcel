@@ -1,7 +1,7 @@
 const TABS = [
   { key: 'procesar', label: 'Procesar archivo' },
   { key: 'proveedores', label: 'Proveedores' },
-  { key: 'cc', label: 'Copia (CC)' },
+  { key: 'cc', label: 'Copias (CC)' },
   { key: 'plantilla', label: 'Plantilla' },
 ]
 

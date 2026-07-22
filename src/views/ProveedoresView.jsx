@@ -8,8 +8,9 @@ import { FILE_TYPES } from '../lib/fileTypes'
 import {
   listProviders, addProvider, updateProvider, deleteProvider, deleteAllProviders,
   bulkUpsertProviders, parseProvidersFile, parseEmails, isEmail,
-  setTypeFlag, setTypeFlagMany,
+  setTypeFlag, setTypeFlagMany, setFieldMany,
 } from '../lib/providers'
+import { listCcConfigs, getCcDefaults } from '../lib/cc'
 import { downloadBlob } from '../lib/excel'
 
 const TYPES = FILE_TYPES.filter((t) => t.enabled && t.flag)
@@ -31,6 +32,9 @@ export default function ProveedoresView() {
   const fileRef = useRef(null)
   const [importing, setImporting] = useState(false)
 
+  const [ccConfigs, setCcConfigs] = useState([])
+  const [ccDefaults, setCcDefaults] = useState({})
+
   async function load() {
     setLoading(true); setError('')
     try { setRows(await listProviders()) }
@@ -38,7 +42,13 @@ export default function ProveedoresView() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { if (isConfigured()) load(); else setLoading(false) }, [])
+  useEffect(() => {
+    if (!isConfigured()) { setLoading(false); return }
+    load()
+    // Configuraciones de CC (para el selector en las pestañas por tipo)
+    listCcConfigs().then(setCcConfigs).catch((e) => console.error('CC configs:', e.message))
+    getCcDefaults().then(setCcDefaults).catch((e) => console.error('CC defaults:', e.message))
+  }, [])
 
   function resetForm() { setEditingId(null); setNombre(''); setEmailsStr(''); setActivo(true) }
   function startEdit(p) {
@@ -135,6 +145,23 @@ export default function ProveedoresView() {
     } catch (e) { console.error(e); toast.error('No se pudo guardar.'); load() }
   }
 
+  // CC: excepción por proveedor para el tipo activo ('' = usar el por defecto)
+  async function changeCc(p, ccField, value) {
+    const id = value || null
+    setRows((rs) => rs.map((r) => (r.id === p.id ? { ...r, [ccField]: id } : r)))
+    try { await updateProvider(p.id, { [ccField]: id }) }
+    catch (e) { console.error(e); toast.error('No se pudo guardar la copia.'); load() }
+  }
+
+  async function bulkCc(ccField, value, ids) {
+    if (!ids.length) return
+    const id = value || null
+    const idset = new Set(ids)
+    setRows((rs) => rs.map((r) => (idset.has(r.id) ? { ...r, [ccField]: id } : r)))
+    try { await setFieldMany(ids, ccField, id); toast.success('Copia asignada.') }
+    catch (e) { console.error(e); toast.error('No se pudo guardar.'); load() }
+  }
+
   if (!isConfigured()) {
     return (
       <div className="glass">
@@ -188,6 +215,7 @@ export default function ProveedoresView() {
           <TypeTab
             type={activeType} loading={loading} query={query} setQuery={setQuery}
             filtered={filtered} toggleFlag={toggleFlag} bulkFlag={bulkFlag}
+            ccConfigs={ccConfigs} ccDefaults={ccDefaults} changeCc={changeCc} bulkCc={bulkCc}
           />
         )}
       </div>
@@ -281,11 +309,19 @@ function TodosTab(props) {
   )
 }
 
-// ---------- Pestaña de un tipo (incluir / excluir del envío) ----------
-function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFlag }) {
+// ---------- Pestaña de un tipo (incluir / excluir del envío + copia CC) ----------
+function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFlag, ccConfigs, ccDefaults, changeCc, bulkCc }) {
   const flag = type.flag
+  const ccField = type.ccField
   const ids = filtered.map((p) => p.id)
   const incluidos = filtered.filter((p) => p[flag]).length
+  const [bulkCcSel, setBulkCcSel] = useState('')
+
+  // Nombre de la copia por defecto para este tipo (default del tipo → General)
+  const general = ccConfigs.find((c) => c.es_general)
+  const defId = ccDefaults[type.key]
+  const defConfig = (defId && ccConfigs.find((c) => c.id === defId)) || general
+  const defName = defConfig ? defConfig.nombre : '—'
 
   return (
     <div className="glass">
@@ -301,10 +337,20 @@ function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFla
         </div>
       </div>
 
-      <p className="muted" style={{ marginTop: 0, marginBottom: 14 }}>
-        Enciende el interruptor de los proveedores que reciben <b>{type.label}</b>. Los apagados no recibirán este tipo
-        (aunque aparezcan en el archivo). {query && <>Los botones "Marcar/Quitar todos" aplican a los <b>{filtered.length}</b> que ves ahora.</>}
+      <p className="muted" style={{ marginTop: 0, marginBottom: 10 }}>
+        Enciende el interruptor de los proveedores que reciben <b>{type.label}</b>, y elige su <b>copia (CC)</b> si es
+        distinta a la por defecto (<b>{defName}</b>). {query && <>Las acciones en bloque aplican a los <b>{filtered.length}</b> que ves ahora.</>}
       </p>
+
+      {ccConfigs.length > 0 && (
+        <div className="row" style={{ marginBottom: 14 }}>
+          <select className="input" style={{ maxWidth: 260 }} value={bulkCcSel} onChange={(e) => setBulkCcSel(e.target.value)}>
+            <option value="">Por defecto ({defName})</option>
+            {ccConfigs.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+          <button className="mini edit" onClick={() => bulkCc(ccField, bulkCcSel, ids)}>Asignar esa copia a los visibles</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="loader-row"><Spinner /> Cargando…</div>
@@ -323,6 +369,17 @@ function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFla
                     {sinCorreo ? <span className="muted">— sin correo —</span> : (p.emails || []).join('  ·  ')}
                   </span>
                 </div>
+                {ccConfigs.length > 0 && (
+                  <select
+                    className="cc-select"
+                    title="Copia (CC) para este tipo"
+                    value={p[ccField] || ''}
+                    onChange={(e) => changeCc(p, ccField, e.target.value)}
+                  >
+                    <option value="">CC: por defecto</option>
+                    {ccConfigs.map((c) => <option key={c.id} value={c.id}>CC: {c.nombre}</option>)}
+                  </select>
+                )}
                 <button
                   type="button"
                   className={'switch' + (on ? ' on' : '')}

@@ -9,7 +9,8 @@ import { confirmDialog } from '../lib/confirm'
 import { getType } from '../lib/fileTypes'
 import { generateZip, downloadBlob, buildProviderFiles, arrayBufferToBase64 } from '../lib/excel'
 import { isConfigured } from '../lib/supabase'
-import { listProviders, listCc } from '../lib/providers'
+import { listProviders } from '../lib/providers'
+import { listCcConfigs, getCcDefaults, resolveCc } from '../lib/cc'
 import { listTemplates, render, bodyToHtml, extractInlineImages, wrapEmailHtml } from '../lib/template'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
@@ -21,13 +22,15 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
   const [db, setDb] = useState([])
   const [dbLoaded, setDbLoaded] = useState(false)
   const [templates, setTemplates] = useState([])
+  const [ccConfigs, setCcConfigs] = useState([])
+  const [ccDefaults, setCcDefaults] = useState({})
   const [busy, setBusy] = useState(false)
   const [preparing, setPreparing] = useState(false)
 
   const type = getType(typeKey)
 
   // Se ejecuta en cada montaje (incluido al volver a la pestaña) → refresca la base
-  // para reflejar proveedores/plantillas sin re-subir el archivo.
+  // para reflejar proveedores/plantillas/CC sin re-subir el archivo.
   useEffect(() => {
     if (!isConfigured()) { setDbLoaded(true); return }
     listProviders()
@@ -41,6 +44,8 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
         if (rows.length && !rows.some((r) => r.id === templateId)) patch({ templateId: rows[0].id })
       })
       .catch((e) => console.error('No se pudieron cargar plantillas:', e.message))
+    listCcConfigs().then(setCcConfigs).catch((e) => console.error('CC configs:', e.message))
+    getCcDefaults().then(setCcDefaults).catch((e) => console.error('CC defaults:', e.message))
   }, [])
 
   const dbIndex = useMemo(() => {
@@ -103,8 +108,8 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
 
     setPreparing(true)
     try {
-      const cc = await listCc()
-      const ccEmails = cc.map((c) => c.email)
+      // Configuraciones de CC frescas (cascada: excepción del proveedor → default del tipo → General)
+      const [freshConfigs, freshDefaults] = await Promise.all([listCcConfigs(), getCcDefaults()])
       const mes = new Date().toLocaleDateString('es', { month: 'long' })
 
       const files = await buildProviderFiles({
@@ -119,10 +124,12 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
         // El cuerpo es HTML (puede traer imágenes pegadas): se extraen como imágenes
         // en línea (CID) porque Outlook no renderiza base64 embebido.
         const { html, images } = extractInlineImages(render(bodyToHtml(tpl.cuerpo), vars))
+        // CC por cascada: excepción del proveedor para este tipo → default del tipo → General
+        const ccConfig = resolveCc(dbIndex.get(t.name), type, freshConfigs, freshDefaults)
         return {
           provider: t.name,
           to: t.emails,
-          cc: ccEmails,
+          cc: ccConfig ? ccConfig.emails : [],
           subject: render(tpl.asunto, vars),
           bodyHtml: wrapEmailHtml(html),
           inlineImages: images,
@@ -241,7 +248,15 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
                     <h4><span className="dot" /> Recibirán correo <span className="count">{match.conCorreo.length}</span></h4>
                     {match.conCorreo.length === 0
                       ? <p className="muted">Ninguno coincide con la base todavía.</p>
-                      : <div className="chips">{match.conCorreo.map((p) => <span key={p.name} className="chip g" title={p.emails.join(', ')}>{p.name}</span>)}</div>}
+                      : (
+                        <div className="chips">
+                          {match.conCorreo.map((p) => {
+                            const cfg = resolveCc(dbIndex.get(p.name), type, ccConfigs, ccDefaults)
+                            const tip = `Para: ${p.emails.join(', ')}\nCC (${cfg ? cfg.nombre : 'sin copia'}): ${cfg && cfg.emails.length ? cfg.emails.join(', ') : '—'}`
+                            return <span key={p.name} className="chip g" title={tip}>{p.name}</span>
+                          })}
+                        </div>
+                      )}
                   </div>
                   <div className="rev warn">
                     <h4><span className="dot" /> Sin correo en la base <span className="count">{match.sinCorreo.length}</span></h4>
@@ -306,7 +321,8 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
 
             {isDesktop ? (
               <p className="hint">
-                Cada proveedor recibirá su archivo adjunto por correo, desde tu Outlook, con la plantilla elegida y la <b>Copia (CC)</b> configurada.
+                Cada proveedor recibirá su archivo adjunto por correo, desde tu Outlook, con la plantilla elegida y
+                su <b>copia (CC)</b> según lo configurado (pasa el mouse sobre un proveedor en verde para ver a quién va y con qué copia).
               </p>
             ) : (
               <p className="hint">El envío por correo está disponible en la <b>app de escritorio</b>. Aquí (web) puedes descargar el ZIP con un Excel por proveedor.</p>
