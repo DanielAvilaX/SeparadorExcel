@@ -293,6 +293,10 @@ También puedes verificarlo en **Elementos enviados** de tu Outlook.
 
 > La app **encuentra sola** la fila de los encabezados, aunque no sea la primera.
 
+> 🔢 **Números y fechas quedan con su formato correcto solos:** las columnas numéricas salen con
+> separador de miles (ej. `1.030`) y las de fecha con formato de fecha (ej. `8/08/2026`) en cada
+> archivo generado — no hace falta arreglarlas a mano en Excel después de descargar.
+
 ---
 
 ## 7. Si algo sale mal

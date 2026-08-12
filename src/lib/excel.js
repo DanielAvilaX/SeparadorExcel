@@ -118,10 +118,36 @@ function detectNumericColumns(rows, columns) {
   return numeric
 }
 
+// Detecta columnas de fecha (celdas que sheet_to_json ya devolvió como Date gracias a
+// cellDates:true) para poder aplicarles un numFmt de fecha en el archivo de salida, en vez de
+// dejarlas "en general" mostrando el número de serie crudo (ej. 46244 en vez de 08/08/2026).
+function detectDateColumns(rows, columns) {
+  const dates = new Set()
+  columns.forEach((col) => {
+    if (!col) return
+    let sawValue = false
+    let allDates = true
+    for (const row of rows) {
+      const v = row[col]
+      if (v === '' || v == null) continue
+      sawValue = true
+      if (!(v instanceof Date)) {
+        allDates = false
+        break
+      }
+    }
+    if (sawValue && allDates) dates.add(col)
+  })
+  return dates
+}
+
 // Parsea a partir de un ArrayBuffer/Uint8Array ya leído (permite mostrar progreso de lectura aparte).
 export function parseBuffer(buf, type) {
   const data = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf
-  const workbook = XLSX.read(data, { type: 'array' })
+  // cellDates: true -> las celdas con formato de fecha llegan como objetos Date de JS en vez
+  // de su número de serie crudo (ej. 46244). Sin esto, raw:true devuelve el serial y la fecha
+  // termina escribiéndose "en general" en el archivo de salida (ej. Rotación por canales).
+  const workbook = XLSX.read(data, { type: 'array', cellDates: true })
   const sheetName = pickSheetName(workbook, type)
   const sheet = workbook.Sheets[sheetName]
 
@@ -134,11 +160,20 @@ export function parseBuffer(buf, type) {
   // String(c) internamente, así que sigue funcionando igual para ubicar el encabezado.
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '', raw: true })
 
-  const providerColumn = type.providerColumn
-  const headerIdx = findHeaderRow(matrix, providerColumn)
+  const configuredProviderColumn = type.providerColumn
+  const headerIdx = findHeaderRow(matrix, configuredProviderColumn)
 
   const columns = (matrix[headerIdx] || [])
     .map((c) => (c == null ? '' : String(c).trim()))
+
+  // El nombre exacto de la columna de proveedor puede variar entre versiones del mismo reporte
+  // (ej. "PROVEEDOR" vs "Proveedor"). Los valores de cada fila se indexan por el texto literal
+  // del encabezado tal como aparece en el archivo, así que hay que resolverlo de forma
+  // insensible a mayúsculas/minúsculas y usar ESE texto (no el de fileTypes.js) de aquí en
+  // adelante -- si no, columns.includes/row[...] fallan aunque el encabezado "sea el mismo".
+  const providerColumn = configuredProviderColumn
+    ? columns.find((c) => c.toUpperCase() === configuredProviderColumn.trim().toUpperCase()) || configuredProviderColumn
+    : configuredProviderColumn
 
   // Filas de datos: debajo del encabezado, ignorando filas totalmente vacías.
   const rows = matrix
@@ -158,8 +193,9 @@ export function parseBuffer(buf, type) {
   // FIX: se calcula qué columnas son numéricas para poder escribirlas como números reales
   // (con formato) en el archivo de salida, en vez de como texto.
   const numericColumns = detectNumericColumns(rows, columns)
+  const dateColumns = detectDateColumns(rows, columns)
 
-  return { sheetName, columns, rows, providerColumn, providerColExists, providers, numericColumns }
+  return { sheetName, columns, rows, providerColumn, providerColExists, providers, numericColumns, dateColumns }
 }
 
 // Lee el archivo y devuelve columnas, filas y la lista de proveedores encontrados.
@@ -194,11 +230,14 @@ const FILL = {
   green: 'FF00B050',
   orange: 'FFFFC000',
   blue: 'FFB4C7E7',
+  lightblue: 'FF00B0F0',
   note: 'FFE2EFDA',
 }
 
 // FIX: formato numérico por defecto para columnas detectadas como numéricas en la hoja de datos.
 const DEFAULT_NUM_FMT = '#,##0'
+// Formato de fecha para columnas detectadas como Date (ver detectDateColumns).
+const DATE_FMT = 'd/mm/yyyy'
 
 // Hoja "CONFIRMACION DESCUENTO". La estructura varía por tipo:
 //   PACOM      -> 2 filas de nota + encabezado + filas fijas (PACOM / DESCUENTO POS)
@@ -226,7 +265,7 @@ function addConfirmacionSheet(wb, spec) {
     // FIX: fallback a FILL.blue si el fill configurado no existe en el mapa, para no romper
     // el estilo (fgColor undefined) si algún header llega sin 'fill' o con un valor inesperado.
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL[h.fill] || FILL.blue } }
-    cell.font = { bold: true, color: { argb: h.fill === 'green' ? 'FFFFFFFF' : 'FF000000' } }
+    cell.font = { bold: true, color: { argb: (h.fill === 'green' || h.fill === 'lightblue') ? 'FFFFFFFF' : 'FF000000' } }
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
     cell.border = BOX
   })
@@ -273,6 +312,7 @@ function bordersFrom(ws, startRow) {
 // miles) en vez del valor crudo, así el ancho de columna sigue viéndose bien aunque el dato
 // ya no sea string.
 function displayLength(v) {
+  if (v instanceof Date) return DATE_FMT.length
   if (typeof v === 'number') return v.toLocaleString('en-US').length
   return (v ?? '').toString().length
 }
@@ -307,17 +347,18 @@ function writeDataRow(ws, row, columns) {
   return ws.addRow(obj)
 }
 
-function applyNumericFormats(ws, columns, numericColumns) {
-  if (!numericColumns) return
+function applyColumnFormats(ws, columns, numericColumns, dateColumns) {
   columns.forEach((col, i) => {
-    if (numericColumns.has(col)) {
+    if (numericColumns && numericColumns.has(col)) {
       ws.getColumn(i + 1).numFmt = DEFAULT_NUM_FMT
+    } else if (dateColumns && dateColumns.has(col)) {
+      ws.getColumn(i + 1).numFmt = DATE_FMT
     }
   })
 }
 
 // Salida estándar — PACOM / Rotación. Si el tipo define hoja de confirmación, va primero.
-async function buildProviderWorkbook(providerRows, columns, type, numericColumns) {
+async function buildProviderWorkbook(providerRows, columns, type, numericColumns, dateColumns) {
   const wb = new ExcelJS.Workbook()
   if (type && type.confirmacion) addConfirmacionSheet(wb, type.confirmacion)
   const ws = wb.addWorksheet((type && type.dataSheet) || 'Datos')
@@ -326,14 +367,14 @@ async function buildProviderWorkbook(providerRows, columns, type, numericColumns
   styleHeaderRow(ws.getRow(1))
   bordersFrom(ws, 2)
   autoWidth(ws, columns, providerRows)
-  // FIX: aplica formato numérico real a las columnas detectadas, después de autoWidth
+  // FIX: aplica formato numérico/fecha real a las columnas detectadas, después de autoWidth
   // (autoWidth ya usa displayLength, así que el orden no afecta el ancho calculado).
-  applyNumericFormats(ws, columns, numericColumns)
+  applyColumnFormats(ws, columns, numericColumns, dateColumns)
   return wb
 }
 
 // Salida Descuentos: 2 hojas (CONFIRMACION DESCUENTO + DEPURACION con total, encabezado y filas).
-async function buildDescuentosWorkbook(providerRows, type, numericColumns) {
+async function buildDescuentosWorkbook(providerRows, type, numericColumns, dateColumns) {
   const output = type.output
   const wb = new ExcelJS.Workbook()
 
@@ -363,13 +404,13 @@ async function buildDescuentosWorkbook(providerRows, type, numericColumns) {
   autoWidth(d, cols, providerRows)
   // FIX: en esta hoja los datos empiezan en la fila 3 (fila 1 = total, fila 2 = encabezado),
   // pero numFmt se aplica a nivel de columna completa, así que igual cubre las filas de datos.
-  applyNumericFormats(d, cols, numericColumns)
+  applyColumnFormats(d, cols, numericColumns, dateColumns)
 
   return wb
 }
 
 // Genera un archivo Excel por proveedor. Devuelve [{ provider, filename, buffer }].
-export async function buildProviderFiles({ rows, columns, providerColumn, prefix = '', type = null, onlyProviders = null, numericColumns = null }) {
+export async function buildProviderFiles({ rows, columns, providerColumn, prefix = '', type = null, onlyProviders = null, numericColumns = null, dateColumns = null }) {
   // FIX: validación temprana — si la columna de proveedor configurada no existe en los
   // encabezados detectados, antes se generaba un ZIP vacío sin ningún aviso. Ahora se lanza
   // un error explícito para que el problema se note de inmediato.
@@ -388,8 +429,8 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
   for (const [provider, providerRows] of groups) {
     if (filter && !filter.has(provider)) continue
     const wb = type?.output?.mode === 'descuentos'
-      ? await buildDescuentosWorkbook(providerRows, type, numericColumns)
-      : await buildProviderWorkbook(providerRows, columns, type, numericColumns)
+      ? await buildDescuentosWorkbook(providerRows, type, numericColumns, dateColumns)
+      : await buildProviderWorkbook(providerRows, columns, type, numericColumns, dateColumns)
     const buffer = await wb.xlsx.writeBuffer()
 
     let filename = `${prefix}${sanitize(provider)}.xlsx`
@@ -417,8 +458,8 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
 }
 
 // Devuelve un Blob (ZIP) y un resumen. `type` decide el formato de salida.
-export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null, numericColumns = null }) {
-  const files = await buildProviderFiles({ rows, columns, providerColumn, prefix, type, onlyProviders, numericColumns })
+export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null, numericColumns = null, dateColumns = null }) {
+  const files = await buildProviderFiles({ rows, columns, providerColumn, prefix, type, onlyProviders, numericColumns, dateColumns })
   const zip = new JSZip()
   files.forEach((f) => zip.file(f.filename, f.buffer))
   const blob = await zip.generateAsync({ type: 'blob' })
