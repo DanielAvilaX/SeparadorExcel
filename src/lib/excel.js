@@ -4,14 +4,18 @@ import JSZip from 'jszip'
 
 // -------- Lectura del archivo subido --------
 
-// Elige la hoja correcta según el tipo (por nombre sugerido, con fallback a la primera).
-function pickSheetName(workbook, type) {
+// Elige la hoja correcta según el tipo (por nombre sugerido).
+// `required: true` (hoja principal) cae a la primera hoja si ningún hint coincide.
+// `required: false` (hoja opcional, ej. "PROXIMOS A VENCER") devuelve null si no existe --
+// nunca "adivina" una hoja para una hoja opcional, porque escribiría datos de la hoja
+// equivocada sin ningún aviso.
+function pickSheetName(workbook, hints, required) {
   const names = workbook.SheetNames
-  for (const hint of type.sheetHints || []) {
+  for (const hint of hints || []) {
     const found = names.find((n) => n.trim().toLowerCase() === hint.trim().toLowerCase())
     if (found) return found
   }
-  return names[0]
+  return required ? names[0] : null
 }
 
 // Detecta la fila de encabezado: la primera fila que contenga la columna de proveedor.
@@ -118,9 +122,38 @@ function detectNumericColumns(rows, columns) {
   return numeric
 }
 
+// Normaliza un objeto Date a medianoche UTC "pura" (sin componente de hora).
+//
+// Por qué: SheetJS (con cellDates:true) construye el Date interpretando el serial de Excel con
+// los campos de calendario LOCALES de esta máquina (año/mes/día locales = los del Excel), pero
+// un Date de JS guarda internamente un instante absoluto. Si ese mismo objeto se pasa tal cual a
+// ExcelJS para escribirlo, ExcelJS calcula el serial de salida a partir del instante absoluto
+// (UTC) -- no de los campos locales -- así que sin normalizar, el serial de salida queda con un
+// resto fraccionario del tamaño del huso horario de la máquina (ej. 46230 -> 46230.2085 en
+// UTC-5), y ese resto SE ACUMULA en cada ciclo lectura->escritura->lectura adicional.
+// Verificado con un round-trip real (ver PROXIMOS A VENCER / "Fecha caducidad", que llega con
+// formato "General" en el origen): sin este fix el serial escrito ya no es un día exacto.
+// Con el fix (reconstruir con Date.UTC a partir de los campos LOCALES), el serial de salida
+// vuelve a ser el mismo entero exacto que el de origen.
+function normalizeDate(d) {
+  if (!(d instanceof Date)) return d
+  const normalized = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  // FIX: autochequeo barato -- si esto alguna vez no da un día UTC exacto, es mejor fallar
+  // fuerte aquí que dejar pasar un serial corrupto en silencio al archivo de salida.
+  if (
+    normalized.getUTCHours() !== 0 || normalized.getUTCMinutes() !== 0 ||
+    normalized.getUTCSeconds() !== 0 || normalized.getUTCMilliseconds() !== 0
+  ) {
+    throw new Error(`normalizeDate: resultado inesperado para ${d.toISOString()}`)
+  }
+  return normalized
+}
+
 // Detecta columnas de fecha (celdas que sheet_to_json ya devolvió como Date gracias a
 // cellDates:true) para poder aplicarles un numFmt de fecha en el archivo de salida, en vez de
 // dejarlas "en general" mostrando el número de serie crudo (ej. 46244 en vez de 08/08/2026).
+// FIX: además NORMALIZA cada fecha detectada (mutando `rows`, igual que detectNumericColumns
+// con los números) para blindar el pipeline contra el desfase de huso horario descrito arriba.
 function detectDateColumns(rows, columns) {
   const dates = new Set()
   columns.forEach((col) => {
@@ -136,44 +169,40 @@ function detectDateColumns(rows, columns) {
         break
       }
     }
-    if (sawValue && allDates) dates.add(col)
+    if (sawValue && allDates) {
+      dates.add(col)
+      for (const row of rows) {
+        if (row[col] instanceof Date) row[col] = normalizeDate(row[col])
+      }
+    }
   })
   return dates
 }
 
-// Parsea a partir de un ArrayBuffer/Uint8Array ya leído (permite mostrar progreso de lectura aparte).
-export function parseBuffer(buf, type) {
-  const data = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf
-  // cellDates: true -> las celdas con formato de fecha llegan como objetos Date de JS en vez
-  // de su número de serie crudo (ej. 46244). Sin esto, raw:true devuelve el serial y la fecha
-  // termina escribiéndose "en general" en el archivo de salida (ej. Rotación por canales).
-  const workbook = XLSX.read(data, { type: 'array', cellDates: true })
-  const sheetName = pickSheetName(workbook, type)
+// Parsea UNA hoja del workbook ya cargado. Devuelve null si la hoja no existe y no es requerida
+// (hoja opcional, ej. una hoja nueva que no todos los archivos traen).
+function parseSheetData(workbook, sheetHints, providerColumnHint, required) {
+  const sheetName = pickSheetName(workbook, sheetHints, required)
+  if (!sheetName) return null
   const sheet = workbook.Sheets[sheetName]
 
-  // FIX: raw: true -> nos da el valor crudo de la celda (number, string, boolean, Date),
-  // no el texto ya formateado por el motor SSF de SheetJS. Esto evita que el separador de
-  // miles/decimales del locale de origen (o de quien reguardó el archivo, ej. Nitro Pro)
-  // se filtre como texto y provoque truncamientos o lecturas erróneas (ej. 1.030 -> "103").
-  //
-  // Ojo: como ahora headerIdx se busca sobre valores crudos, findHeaderRow ya convierte con
-  // String(c) internamente, así que sigue funcionando igual para ubicar el encabezado.
+  // raw: true -> nos da el valor crudo de la celda (number, string, boolean, Date), no el texto
+  // ya formateado por el motor SSF de SheetJS. Esto evita que el separador de miles/decimales
+  // del locale de origen (o de quien reguardó el archivo, ej. Nitro Pro) se filtre como texto y
+  // provoque truncamientos o lecturas erróneas (ej. 1.030 -> "103").
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '', raw: true })
 
-  const configuredProviderColumn = type.providerColumn
-  const headerIdx = findHeaderRow(matrix, configuredProviderColumn)
+  const headerIdx = findHeaderRow(matrix, providerColumnHint)
+  const columns = (matrix[headerIdx] || []).map((c) => (c == null ? '' : String(c).trim()))
 
-  const columns = (matrix[headerIdx] || [])
-    .map((c) => (c == null ? '' : String(c).trim()))
-
-  // El nombre exacto de la columna de proveedor puede variar entre versiones del mismo reporte
-  // (ej. "PROVEEDOR" vs "Proveedor"). Los valores de cada fila se indexan por el texto literal
-  // del encabezado tal como aparece en el archivo, así que hay que resolverlo de forma
-  // insensible a mayúsculas/minúsculas y usar ESE texto (no el de fileTypes.js) de aquí en
-  // adelante -- si no, columns.includes/row[...] fallan aunque el encabezado "sea el mismo".
-  const providerColumn = configuredProviderColumn
-    ? columns.find((c) => c.toUpperCase() === configuredProviderColumn.trim().toUpperCase()) || configuredProviderColumn
-    : configuredProviderColumn
+  // El nombre exacto de la columna de proveedor puede variar entre hojas del mismo archivo
+  // (ej. "PROVEEDOR" en Lista de productos vs "Proveedor" en Confirmación descuento) o entre
+  // versiones del mismo reporte. Los valores de cada fila se indexan por el texto literal del
+  // encabezado tal como aparece en el archivo, así que hay que resolverlo de forma insensible a
+  // mayúsculas/minúsculas y usar ESE texto (no el de fileTypes.js) de aquí en adelante.
+  const providerColumn = providerColumnHint
+    ? columns.find((c) => c.toUpperCase() === providerColumnHint.trim().toUpperCase()) || providerColumnHint
+    : providerColumnHint
 
   // Filas de datos: debajo del encabezado, ignorando filas totalmente vacías.
   const rows = matrix
@@ -190,12 +219,49 @@ export function parseBuffer(buf, type) {
     ? [...new Set(rows.map((r) => (r[providerColumn] || '').toString().trim()).filter(Boolean))].sort()
     : []
 
-  // FIX: se calcula qué columnas son numéricas para poder escribirlas como números reales
-  // (con formato) en el archivo de salida, en vez de como texto.
   const numericColumns = detectNumericColumns(rows, columns)
   const dateColumns = detectDateColumns(rows, columns)
 
   return { sheetName, columns, rows, providerColumn, providerColExists, providers, numericColumns, dateColumns }
+}
+
+// Parsea a partir de un ArrayBuffer/Uint8Array ya leído (permite mostrar progreso de lectura
+// aparte). Lee TODAS las hojas que el tipo necesita (`type.sheets`): la principal (`primary`,
+// determina proveedores/columnas que ve la UI) y las opcionales (se omiten si el archivo no las
+// trae, sin error).
+export function parseBuffer(buf, type) {
+  const data = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf
+  // cellDates: true -> las celdas con formato de fecha llegan como objetos Date de JS en vez
+  // de su número de serie crudo (ej. 46244). Sin esto, raw:true devuelve el serial y la fecha
+  // termina escribiéndose "en general" en el archivo de salida.
+  const workbook = XLSX.read(data, { type: 'array', cellDates: true })
+
+  const sheetDefs = type.sheets || []
+  const primaryDef = sheetDefs.find((s) => s.primary) || sheetDefs[0]
+  if (!primaryDef) throw new Error(`El tipo "${type.key}" no define ninguna hoja de datos (type.sheets).`)
+
+  const primary = parseSheetData(workbook, primaryDef.sheetHints, type.providerColumn, true)
+
+  const extraSheets = {}
+  for (const def of sheetDefs) {
+    if (def === primaryDef) continue
+    const extra = parseSheetData(workbook, def.sheetHints, type.providerColumn, false)
+    if (extra) extraSheets[def.key] = extra
+  }
+
+  // FIX: la lista de proveedores del archivo es la UNIÓN de los proveedores de TODAS las hojas
+  // (no solo la principal). Antes, un proveedor que solo aparecía en una hoja secundaria (ej.
+  // "PROXIMOS A VENCER" en Descuentos tiene 65 proveedores que NO están en "DEPURACION") nunca
+  // generaba archivo ni recibía correo: sus filas se perdían en silencio porque solo se
+  // recorrían los proveedores de la hoja principal. Verificado con datos reales: de 10,150
+  // filas de PROXIMOS A VENCER, 5,895 (58%) pertenecían a un proveedor ausente en DEPURACION.
+  const providerSet = new Set(primary.providers)
+  for (const extra of Object.values(extraSheets)) {
+    for (const p of extra.providers) providerSet.add(p)
+  }
+  const providers = [...providerSet].sort()
+
+  return { ...primary, providers, extraSheets }
 }
 
 // Lee el archivo y devuelve columnas, filas y la lista de proveedores encontrados.
@@ -239,9 +305,8 @@ const DEFAULT_NUM_FMT = '#,##0'
 // Formato de fecha para columnas detectadas como Date (ver detectDateColumns).
 const DATE_FMT = 'd/mm/yyyy'
 
-// Hoja "CONFIRMACION DESCUENTO". La estructura varía por tipo:
-//   PACOM      -> 2 filas de nota + encabezado + filas fijas (PACOM / DESCUENTO POS)
-//   DESCUENTOS -> 1 fila en blanco + encabezado + filas vacías para llenar
+// Hoja "CONFIRMACION DESCUENTO" de Descuentos: plantilla en blanco (sin datos reales de
+// entrada, ver nota en fileTypes.js).
 function addConfirmacionSheet(wb, spec) {
   const ws = wb.addWorksheet(spec.sheet)
   const n = spec.headers.length
@@ -339,14 +404,6 @@ function money(n) {
   return '$ ' + Math.round(n).toLocaleString('en-US')
 }
 
-// FIX: escribe cada fila respetando el tipo de dato (number vs string/otro) y aplica numFmt
-// a las columnas detectadas como numéricas, en vez de dejar todo como texto en formato General.
-function writeDataRow(ws, row, columns) {
-  const obj = {}
-  columns.forEach((c) => { obj[c] = row[c] ?? '' })
-  return ws.addRow(obj)
-}
-
 function applyColumnFormats(ws, columns, numericColumns, dateColumns) {
   columns.forEach((col, i) => {
     if (numericColumns && numericColumns.has(col)) {
@@ -357,60 +414,82 @@ function applyColumnFormats(ws, columns, numericColumns, dateColumns) {
   })
 }
 
-// Salida estándar — PACOM / Rotación. Si el tipo define hoja de confirmación, va primero.
-async function buildProviderWorkbook(providerRows, columns, type, numericColumns, dateColumns) {
-  const wb = new ExcelJS.Workbook()
-  if (type && type.confirmacion) addConfirmacionSheet(wb, type.confirmacion)
-  const ws = wb.addWorksheet((type && type.dataSheet) || 'Datos')
-  ws.columns = columns.map((c) => ({ header: c, key: c }))
-  providerRows.forEach((r) => writeDataRow(ws, r, columns))
-  styleHeaderRow(ws.getRow(1))
-  bordersFrom(ws, 2)
-  autoWidth(ws, columns, providerRows)
-  // FIX: aplica formato numérico/fecha real a las columnas detectadas, después de autoWidth
-  // (autoWidth ya usa displayLength, así que el orden no afecta el ancho calculado).
-  applyColumnFormats(ws, columns, numericColumns, dateColumns)
-  return wb
-}
+// Agrega una hoja que REFLEJA 1:1 las columnas del Excel de origen (mismo nombre, mismo orden),
+// ya filtradas por proveedor -- ver nota en fileTypes.js sobre por qué ya no hay listas de
+// columnas fijas en el código. `totalColumn`, si se da, agrega arriba del encabezado la fila con
+// el total en pesos de esa columna (formato DEPURACION original).
+function addMirrorSheet(wb, name, rows, columns, numericColumns, dateColumns, totalColumn) {
+  const ws = wb.addWorksheet(name)
+  let headerRowNumber = 1
 
-// Salida Descuentos: 2 hojas (CONFIRMACION DESCUENTO + DEPURACION con total, encabezado y filas).
-async function buildDescuentosWorkbook(providerRows, type, numericColumns, dateColumns) {
-  const output = type.output
-  const wb = new ExcelJS.Workbook()
-
-  // Hoja 1: formulario de confirmación
-  if (type.confirmacion) addConfirmacionSheet(wb, type.confirmacion)
-
-  // Hoja 2: depuración (fila de total + encabezado + filas del proveedor)
-  const d = wb.addWorksheet(output.depuracionSheet)
-  const cols = output.depuracionColumns
-  const totalIdx = cols.indexOf(output.totalColumn)
-
-  const total = providerRows.reduce((s, r) => s + toNumber(r[output.totalColumn]), 0)
-  const totalRow = new Array(cols.length).fill('')
-  if (totalIdx >= 0) totalRow[totalIdx] = money(total)
-  const tr = d.addRow(totalRow)
-  if (totalIdx >= 0) {
-    const cell = tr.getCell(totalIdx + 1)
-    cell.font = { bold: true }
-    cell.alignment = { horizontal: 'right' }
+  if (totalColumn) {
+    const totalIdx = columns.indexOf(totalColumn)
+    const total = rows.reduce((s, r) => s + toNumber(r[totalColumn]), 0)
+    const totalRow = new Array(columns.length).fill('')
+    if (totalIdx >= 0) totalRow[totalIdx] = money(total)
+    const tr = ws.addRow(totalRow)
+    if (totalIdx >= 0) {
+      const cell = tr.getCell(totalIdx + 1)
+      cell.font = { bold: true }
+      cell.alignment = { horizontal: 'right' }
+    }
+    headerRowNumber = 2
   }
 
-  d.addRow(cols) // encabezado en la fila 2
-  providerRows.forEach((r) => d.addRow(cols.map((col) => r[col] ?? '')))
+  ws.addRow(columns)
+  rows.forEach((r) => ws.addRow(columns.map((c) => r[c] ?? '')))
 
-  styleHeaderRow(d.getRow(2))
-  bordersFrom(d, 2)
-  autoWidth(d, cols, providerRows)
-  // FIX: en esta hoja los datos empiezan en la fila 3 (fila 1 = total, fila 2 = encabezado),
-  // pero numFmt se aplica a nivel de columna completa, así que igual cubre las filas de datos.
-  applyColumnFormats(d, cols, numericColumns, dateColumns)
+  styleHeaderRow(ws.getRow(headerRowNumber))
+  bordersFrom(ws, headerRowNumber)
+  autoWidth(ws, columns, rows)
+  applyColumnFormats(ws, columns, numericColumns, dateColumns)
+  return ws
+}
 
+// FIX: valida integridad de datos antes de dar por buena una hoja de salida. Se agrega
+// explícitamente porque un desajuste entre una lista de columnas fija en el código y el
+// encabezado real del Excel de entrada causó antes que una columna completa (el descuento)
+// saliera en blanco sin ningún aviso -- ver nota en fileTypes.js. Si vuelve a pasar algo
+// parecido (columna que ya no existe, fila que se pierde en el camino), esto revienta con un
+// error claro en vez de generar un ZIP con datos faltantes en silencio.
+function assertSheetIntegrity(label, sourceColumns, outputColumns, sourceRowCount, writtenRowCount) {
+  const missing = outputColumns.filter((c) => !sourceColumns.includes(c))
+  if (missing.length) {
+    throw new Error(
+      `Validación de datos falló en "${label}": la(s) columna(s) ${missing.join(', ')} no existen en el ` +
+      `encabezado del archivo de origen (${sourceColumns.join(', ')}). No se generó el archivo para no ` +
+      `perder datos en silencio -- revisa si el formato del Excel cambió.`
+    )
+  }
+  if (sourceRowCount !== writtenRowCount) {
+    throw new Error(
+      `Validación de datos falló en "${label}": el origen tenía ${sourceRowCount} fila(s) con proveedor y se ` +
+      `escribieron ${writtenRowCount}. No se generó el archivo para no perder datos en silencio.`
+    )
+  }
+}
+
+// Construye el workbook de un proveedor: la hoja de confirmación estática (si el tipo la
+// define) + una hoja por cada entrada de `type.sheets`, en orden.
+function buildProviderWorkbook(provider, type, primaryRows, columns, numericColumns, dateColumns, extraSheets, extraGroups) {
+  const wb = new ExcelJS.Workbook()
+  if (type.confirmacion) addConfirmacionSheet(wb, type.confirmacion)
+
+  for (const def of type.sheets) {
+    if (def.primary) {
+      addMirrorSheet(wb, def.outputName, primaryRows, columns, numericColumns, dateColumns, def.totalColumn)
+    } else {
+      const extra = extraSheets && extraSheets[def.key]
+      const rows = extra ? (extraGroups[def.key].get(provider) || []) : []
+      const cols = extra ? extra.columns : []
+      addMirrorSheet(wb, def.outputName, rows, cols, extra?.numericColumns, extra?.dateColumns, def.totalColumn)
+    }
+  }
   return wb
 }
 
 // Genera un archivo Excel por proveedor. Devuelve [{ provider, filename, buffer }].
-export async function buildProviderFiles({ rows, columns, providerColumn, prefix = '', type = null, onlyProviders = null, numericColumns = null, dateColumns = null }) {
+export async function buildProviderFiles({ rows, columns, providerColumn, prefix = '', type = null, onlyProviders = null, numericColumns = null, dateColumns = null, extraSheets = null }) {
   // FIX: validación temprana — si la columna de proveedor configurada no existe en los
   // encabezados detectados, antes se generaba un ZIP vacío sin ningún aviso. Ahora se lanza
   // un error explícito para que el problema se note de inmediato.
@@ -424,13 +503,66 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
   const filter = onlyProviders ? new Set(onlyProviders) : null
   const out = []
   const usedNames = new Set() // FIX: para detectar colisiones de nombre tras sanitize()
-  const skippedRows = rows.length - [...groups.values()].reduce((s, arr) => s + arr.length, 0)
+  // FIX: filas sin proveedor identificable (columna vacía O literalmente 0, visto en datos
+  // reales de "PROXIMOS A VENCER") -- no tienen a dónde ir, así que no entran en ningún
+  // archivo. `skippedRows` (el total que se le reporta al usuario) suma TODAS las hojas; cada
+  // hoja también guarda su propio conteo (`primarySkipped`/`extraSkipped` más abajo) para el
+  // chequeo de integridad, que debe validar cada hoja contra SU PROPIO total, no el agregado.
+  const primarySkipped = rows.length - [...groups.values()].reduce((s, arr) => s + arr.length, 0)
+  let skippedRows = primarySkipped
 
-  for (const [provider, providerRows] of groups) {
+  // Agrupa también cada hoja extra por SU PROPIO proveedor (el nombre de columna puede variar
+  // entre hojas, ej. "Proveedor" vs "PROVEEDOR"; ya viene resuelto por hoja desde parseBuffer).
+  const extraGroups = {}
+  const extraSkippedByKey = {}
+  if (type?.sheets) {
+    for (const def of type.sheets) {
+      if (def.primary) continue
+      const extra = extraSheets && extraSheets[def.key]
+      extraGroups[def.key] = extra ? groupByProvider(extra.rows, extra.providerColumn) : new Map()
+      if (extra) {
+        const extraSkipped = extra.rows.length - [...extraGroups[def.key].values()].reduce((s, arr) => s + arr.length, 0)
+        extraSkippedByKey[def.key] = extraSkipped
+        skippedRows += extraSkipped
+      }
+    }
+  }
+
+  // FIX: valida, antes de generar ningún archivo, que cada hoja mirror vaya a reflejar
+  // exactamente sus columnas de origen (ver assertSheetIntegrity). Con reflejo dinámico esto es
+  // tautológico hoy, pero es la red de seguridad si en el futuro alguien vuelve a fijar una
+  // lista de columnas a mano.
+  if (type?.sheets) {
+    for (const def of type.sheets) {
+      if (def.primary) {
+        assertSheetIntegrity(def.outputName, columns, columns, rows.length - primarySkipped, [...groups.values()].reduce((s, a) => s + a.length, 0))
+      } else if (extraSheets && extraSheets[def.key]) {
+        const extra = extraSheets[def.key]
+        assertSheetIntegrity(def.outputName, extra.columns, extra.columns, extra.rows.length - extraSkippedByKey[def.key], [...extraGroups[def.key].values()].reduce((s, a) => s + a.length, 0))
+      }
+    }
+  }
+
+  // FIX: universo de proveedores = UNIÓN entre la hoja principal y todas las hojas extra, no
+  // solo la principal -- para no perder proveedores que solo tienen filas en una hoja
+  // secundaria (ver nota en parseBuffer sobre PROXIMOS A VENCER).
+  const allProviders = new Set(groups.keys())
+  for (const g of Object.values(extraGroups)) {
+    for (const p of g.keys()) allProviders.add(p)
+  }
+
+  for (const provider of allProviders) {
     if (filter && !filter.has(provider)) continue
-    const wb = type?.output?.mode === 'descuentos'
-      ? await buildDescuentosWorkbook(providerRows, type, numericColumns, dateColumns)
-      : await buildProviderWorkbook(providerRows, columns, type, numericColumns, dateColumns)
+    const providerRows = groups.get(provider) || []
+    const wb = type?.sheets
+      ? buildProviderWorkbook(provider, type, providerRows, columns, numericColumns, dateColumns, extraSheets, extraGroups)
+      : await (async () => {
+        // Fallback defensivo: no debería pasar (todos los tipos definen `sheets`), pero evita
+        // dejar al usuario sin archivo si algún tipo llega mal configurado.
+        const w = new ExcelJS.Workbook()
+        addMirrorSheet(w, 'Datos', providerRows, columns, numericColumns, dateColumns)
+        return w
+      })()
     const buffer = await wb.xlsx.writeBuffer()
 
     let filename = `${prefix}${sanitize(provider)}.xlsx`
@@ -458,8 +590,8 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
 }
 
 // Devuelve un Blob (ZIP) y un resumen. `type` decide el formato de salida.
-export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null, numericColumns = null, dateColumns = null }) {
-  const files = await buildProviderFiles({ rows, columns, providerColumn, prefix, type, onlyProviders, numericColumns, dateColumns })
+export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null, numericColumns = null, dateColumns = null, extraSheets = null }) {
+  const files = await buildProviderFiles({ rows, columns, providerColumn, prefix, type, onlyProviders, numericColumns, dateColumns, extraSheets })
   const zip = new JSZip()
   files.forEach((f) => zip.file(f.filename, f.buffer))
   const blob = await zip.generateAsync({ type: 'blob' })
