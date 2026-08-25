@@ -300,10 +300,37 @@ const FILL = {
   note: 'FFE2EFDA',
 }
 
-// FIX: formato numérico por defecto para columnas detectadas como numéricas en la hoja de datos.
-const DEFAULT_NUM_FMT = '#,##0'
 // Formato de fecha para columnas detectadas como Date (ver detectDateColumns).
 const DATE_FMT = 'd/mm/yyyy'
+// Formatos para las dos "familias" de columna numérica con significado propio (ver
+// classifyNumericColumn). El resto de columnas numéricas (códigos, SKU, cantidades) se deja en
+// General -- sin separador de miles ni signo $ que el archivo de origen no tenía.
+// FIX: '0.##%' (con decimales opcionales) deja colgado el separador decimal cuando el
+// porcentaje es exacto -- Excel lo renderiza "50.%" (en español "50,%"), como reportado con
+// datos reales. Verificado con el propio motor de formato de Excel (XLSX.SSF.format): '0%' es
+// la única variante que no arrastra ese separador suelto. Los descuentos reales vistos hasta
+// ahora son siempre múltiplos de 5% (15%, 20%, 25%, 35%, 40%, 50%), así que no hay pérdida
+// visual en la práctica; si algún día aparece un porcentaje con decimales (ej. 12.5%), la
+// CELDA sigue guardando el valor exacto (0.125) -- solo la pantalla redondearía a "13%".
+const PERCENT_FMT = '0%'
+const MONEY_FMT = '"$ "#,##0.00' // el "," y "." del código son placeholders de Excel: el
+// separador de miles/decimales que se ve depende del locale regional de quien abre el archivo
+// (en Colombia: "." miles, "," decimales -- igual que la captura que compartiste).
+
+// Clasifica una columna numérica por su NOMBRE (no por sus valores: adivinar por rango de
+// valores es frágil -- una columna de "Unidades" en 1 cae en el mismo rango [-1,1] que un
+// descuento del 100%, y terminaría mal clasificada). Se basa en las columnas reales de los 3
+// tipos de archivo:
+//   - Porcentaje: "DCTO", "Descuento minimo", "%DESCUENTO PROVEEDOR", "%DESCUENTO SOLICITADO..."
+//   - Dinero:     "VR INVENTARIO", "Costo $"
+// Todo lo demás (SKU, Código, CODIGO R11, NIT, INV TOTAL, Unidades, Artículo...) es código/
+// identificador o cantidad -- se queda en General.
+function classifyNumericColumn(name) {
+  const n = (name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+  if (n.includes('%') || n.includes('DESCUENTO') || n.includes('DCTO')) return 'percent'
+  if (n.includes('$') || n.includes('VR ')) return 'money'
+  return null
+}
 
 // Hoja "CONFIRMACION DESCUENTO" de Descuentos: plantilla en blanco (sin datos reales de
 // entrada, ver nota en fileTypes.js).
@@ -404,12 +431,27 @@ function money(n) {
   return '$ ' + Math.round(n).toLocaleString('en-US')
 }
 
+// FIX: las columnas numéricas YA NO reciben un numFmt fijo único (antes '#,##0' para todas, sin
+// excepción). Ese formato es de "cantidad con separador de miles y sin decimales", y aplicado a
+// ciegas rompía columnas que no son cantidades: un código/SKU salía con un punto de separador
+// que el archivo de origen nunca tuvo (ej. 547911 -> "547.911"), y una columna de porcentaje
+// (ej. "Descuento minimo" = 0.25) se REDONDEABA visualmente a "0" -- el valor seguía guardado
+// bien adentro de la celda, pero en Excel se veía como si el descuento fuera cero.
+// Ahora cada columna numérica recibe el formato que le corresponde según su naturaleza (ver
+// classifyNumericColumn): porcentaje, dinero, o General (códigos/cantidades -- sin separador ni
+// redondeo, tal como venían). Las fechas siempre necesitan DATE_FMT (si no, Excel muestra el
+// serial crudo, ej. 46230 en vez de una fecha legible).
 function applyColumnFormats(ws, columns, numericColumns, dateColumns) {
   columns.forEach((col, i) => {
-    if (numericColumns && numericColumns.has(col)) {
-      ws.getColumn(i + 1).numFmt = DEFAULT_NUM_FMT
-    } else if (dateColumns && dateColumns.has(col)) {
+    if (dateColumns && dateColumns.has(col)) {
       ws.getColumn(i + 1).numFmt = DATE_FMT
+      return
+    }
+    if (numericColumns && numericColumns.has(col)) {
+      const kind = classifyNumericColumn(col)
+      if (kind === 'percent') ws.getColumn(i + 1).numFmt = PERCENT_FMT
+      else if (kind === 'money') ws.getColumn(i + 1).numFmt = MONEY_FMT
+      // ninguno de los dos -> se queda en General (código/identificador/cantidad).
     }
   })
 }
