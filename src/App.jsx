@@ -6,12 +6,14 @@ import ToastHost from './components/ToastHost'
 import ConfirmHost from './components/ConfirmHost'
 import SendModal from './components/SendModal'
 import Spinner from './components/Spinner'
+import UpdateBanner from './components/UpdateBanner'
 import ProcesarView from './views/ProcesarView'
 import ProveedoresView from './views/ProveedoresView'
 import CcView from './views/CcView'
 import PlantillaView from './views/PlantillaView'
 import { supabase, isConfigured } from './lib/supabase'
 import { confirmDialog } from './lib/confirm'
+import { checkForUpdate, CURRENT_VERSION } from './lib/appVersion'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 const EMPTY_SEND = {
@@ -24,6 +26,8 @@ export default function App() {
   const [view, setView] = useState('procesar')
   const [session, setSession] = useState(undefined)
   const [send, setSend] = useState(EMPTY_SEND)
+  const [updateInfo, setUpdateInfo] = useState(null)
+  const [updateDismissed, setUpdateDismissed] = useState(false)
 
   const [proc, setProc] = useState({
     typeKey: 'PACOM', parsed: null, file: null, prefix: '', selectedCols: [], templateId: null,
@@ -37,6 +41,12 @@ export default function App() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => sub.subscription.unsubscribe()
   }, [])
+
+  // Revisa una sola vez, al entrar, si hay una version mas nueva publicada.
+  useEffect(() => {
+    if (isConfigured() && session === undefined) return // esperar a resolver sesion primero
+    checkForUpdate().then((info) => { if (info) setUpdateInfo(info) })
+  }, [session])
 
   // Progreso del envío (llega del proceso de Electron; sobrevive cambios de pestaña)
   useEffect(() => {
@@ -99,6 +109,10 @@ export default function App() {
         />
         <Nav view={view} onChange={setView} />
 
+        {!updateDismissed && (
+          <UpdateBanner info={updateInfo} onDismiss={() => setUpdateDismissed(true)} />
+        )}
+
         <div className="view" key={view}>
           {view === 'procesar' && <ProcesarView state={proc} setState={setProc} runSend={runSend} sendActive={send.active} />}
           {view === 'proveedores' && <ProveedoresView />}
@@ -107,7 +121,7 @@ export default function App() {
         </div>
 
         <p className="note">
-          Separador &amp; Envío · Cruz Verde
+          Separador &amp; Envío · Cruz Verde · v{CURRENT_VERSION}
         </p>
       </div>
 

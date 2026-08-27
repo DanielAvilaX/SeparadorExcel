@@ -7,7 +7,7 @@ const LOG = path.join(os.tmpdir(), 'separador-carga.log')
 const log = (m) => { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${m}\n`) } catch { /* noop */ } }
 log(`boot: process.type=${process.type} typeofElectron=${typeof electron} keys=${typeof electron === 'object' ? Object.keys(electron).join(',') : String(electron)}`)
 
-const { app, BrowserWindow, ipcMain, protocol } = electron
+const { app, BrowserWindow, ipcMain, protocol, shell } = electron
 const { sendViaOutlook, cancelSend } = require('./outlook.cjs')
 
 const DIST = path.join(__dirname, '..', 'dist')
@@ -36,6 +36,13 @@ function createWindow() {
     },
   })
   win.setMenuBarVisibility(false)
+
+  // Enlaces que se abren con target="_blank" o window.open() (ej. link de "Descargar
+  // actualización") van al navegador del sistema en vez de abrir una ventana nueva de la app.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
 
   win.webContents.on('did-finish-load', () => log('did-finish-load OK'))
   win.webContents.on('did-fail-load', (_e, code, desc, url) => log(`did-fail-load ${code} ${desc} ${url}`))

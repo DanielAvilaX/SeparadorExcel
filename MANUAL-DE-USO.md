@@ -35,10 +35,19 @@ Si solo quieres **separar y descargar el ZIP**, no necesitas Outlook.
 2. Entra a la carpeta y haz doble clic en **`Separador Cruz Verde.exe`**.
 3. **La primera vez** Windows puede mostrar *"Windows protegió su PC"*:
    haz clic en **Más información → Ejecutar de todos modos**. Es normal (es un programa interno).
-4. **Inicia sesión** con tu correo y contraseña de la app.
+4. **Inicia sesión** con tu correo y contraseña de la app. Si todavía no tienes cuenta, haz clic en
+   **Regístrate**, crea tu usuario y contraseña; si el correo pide confirmación, revisa tu bandeja
+   antes de intentar entrar.
 
 > 💡 **Consejo:** deja la carpeta en un lugar fijo (ej. Documentos) y crea un acceso directo al `.exe`
 > (clic derecho → *Mostrar más opciones → Enviar a → Escritorio*). No hay que instalar nada.
+
+> 👤 **Cada cuenta tiene su propia información.** Los proveedores, plantillas y configuraciones de
+> CC que armas quedan solo en tu cuenta — otra persona que inicie sesión con su propio correo no
+> las ve ni las puede tocar, y arranca con su propia lista vacía para llenar desde cero.
+
+> 🔄 **Aviso de versión:** si alguien publica una versión más nueva de la app, verás un aviso arriba
+> con un botón para descargarla. Tu versión actual aparece al final de la pantalla (ej. `v0.2.0`).
 
 ---
 

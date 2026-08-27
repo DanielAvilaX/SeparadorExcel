@@ -72,11 +72,12 @@ export async function deleteAllProviders() {
   if (error) throw error
 }
 
-// Carga masiva: upsert por nombre (coincidencia exacta).
+// Carga masiva: upsert por nombre (coincidencia exacta, dentro de los proveedores del usuario
+// actual -- 'nombre' ya no es único global, es único por (owner_id, nombre)).
 export async function bulkUpsertProviders(rows) {
   const { error } = await supabase
     .from('providers')
-    .upsert(rows, { onConflict: 'nombre' })
+    .upsert(rows, { onConflict: 'owner_id,nombre' })
   if (error) throw error
 }
 
