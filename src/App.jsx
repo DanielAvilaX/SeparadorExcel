@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import TopBar from './components/TopBar'
-import Nav from './components/Nav'
+import Sidebar from './components/Sidebar'
 import Login from './components/Login'
 import ToastHost from './components/ToastHost'
 import ConfirmHost from './components/ConfirmHost'
@@ -13,7 +12,7 @@ import CcView from './views/CcView'
 import PlantillaView from './views/PlantillaView'
 import { supabase, isConfigured } from './lib/supabase'
 import { confirmDialog } from './lib/confirm'
-import { checkForUpdate, CURRENT_VERSION } from './lib/appVersion'
+import { checkForUpdate } from './lib/appVersion'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 const EMPTY_SEND = {
@@ -97,27 +96,32 @@ export default function App() {
     <>
       <div className="atmos"><span className="b1" /><span className="b2" /><span className="b3" /></div>
 
-      <div className="wrap">
-        <TopBar
+      <div className="app-shell">
+        <Sidebar
+          view={view}
+          onChange={setView}
           userEmail={userEmail}
           onLogout={needsAuth ? () => supabase.auth.signOut() : null}
         />
-        <Nav view={view} onChange={setView} />
 
-        {!updateDismissed && (
-          <UpdateBanner info={updateInfo} onDismiss={() => setUpdateDismissed(true)} />
-        )}
+        <main className="app-main">
+          <div className="wrap">
+            {!updateDismissed && (
+              <UpdateBanner info={updateInfo} onDismiss={() => setUpdateDismissed(true)} />
+            )}
 
-        <div className="view" key={view}>
-          {view === 'procesar' && <ProcesarView state={proc} setState={setProc} runSend={runSend} sendActive={send.active} />}
-          {view === 'proveedores' && <ProveedoresView />}
-          {view === 'cc' && <CcView />}
-          {view === 'plantilla' && <PlantillaView />}
-        </div>
+            <div className="view" key={view}>
+              {view === 'procesar' && <ProcesarView state={proc} setState={setProc} runSend={runSend} sendActive={send.active} />}
+              {view === 'proveedores' && <ProveedoresView />}
+              {view === 'cc' && <CcView />}
+              {view === 'plantilla' && <PlantillaView />}
+            </div>
 
-        <p className="note">
-          Separador &amp; Envío · Cruz Verde · v{CURRENT_VERSION}
-        </p>
+            <p className="note">
+              Separador &amp; Envío · Cruz Verde
+            </p>
+          </div>
+        </main>
       </div>
 
       {send.active && <SendModal send={send} onCancel={requestCancel} onClose={() => setSend(EMPTY_SEND)} />}
