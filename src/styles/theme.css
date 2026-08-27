@@ -448,12 +448,16 @@ body {
 .login-split { min-height:100vh; display:grid; grid-template-columns: 1.1fr 1fr; }
 
 .login-video-panel { position:relative; overflow:hidden; background:var(--ink); }
-.login-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.75; }
+/* El video (persona escribiendo) es de por sí oscuro y de plano cerrado (manos + teclado, poca
+   luz de fondo) -- brightness/contrast lo levanta bastante para que el contenido se note, y el
+   degradado se dejó liviano en el medio (solo oscurece abajo, para el texto, y en el borde
+   derecho, donde entrega al panel del formulario). */
+.login-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:1; filter: brightness(1.6) contrast(.92) saturate(1.05); }
 .login-video-gradient {
   position:absolute; inset:0;
   background:
-    linear-gradient(100deg, rgba(14,36,25,.25) 0%, rgba(14,36,25,.72) 55%, var(--ink) 100%),
-    linear-gradient(to top, var(--ink) 0%, rgba(14,36,25,.15) 40%, rgba(0,166,81,.35) 100%);
+    linear-gradient(100deg, rgba(14,36,25,.02) 0%, rgba(14,36,25,.15) 60%, rgba(14,36,25,.62) 100%),
+    linear-gradient(to top, rgba(14,36,25,.75) 0%, rgba(14,36,25,.03) 38%, rgba(0,166,81,.18) 100%);
 }
 .login-video-content { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; padding:48px; color:#fff; }
 .login-video-content .brand { margin-bottom:18px; }
