@@ -84,12 +84,17 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
     if (!parsed) return
     setBusy(true)
     try {
-      const { blob, count } = await generateZip({
+      const { blob, count, skippedRows } = await generateZip({
         rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn, prefix, type,
-        numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns,
+        numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns, extraSheets: parsed.extraSheets,
       })
       downloadBlob(blob, `${type.key}_DOCUMENTOS_SEPARADOS.zip`)
       toast.success(`ZIP generado · ${count} archivo${count === 1 ? '' : 's'}.`)
+      // FIX: antes se calculaba cuántas filas quedaban sin proveedor (y por lo tanto fuera de
+      // cualquier archivo) pero nunca se le avisaba al usuario -- quedaban perdidas en silencio.
+      if (skippedRows > 0) {
+        toast.error(`⚠ ${skippedRows} fila${skippedRows === 1 ? '' : 's'} sin proveedor identificable no se incluyeron en ningún archivo (dato faltante o inválido en el Excel de origen).`)
+      }
     } catch (e) {
       console.error(e); toast.error('Error generando los archivos. Revisa la consola.')
     } finally { setBusy(false) }
@@ -116,7 +121,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
       const files = await buildProviderFiles({
         rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn,
         prefix, type, onlyProviders: targets.map((t) => t.name),
-        numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns,
+        numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns, extraSheets: parsed.extraSheets,
       })
       const fileMap = new Map(files.map((f) => [f.provider, f]))
 
@@ -195,12 +200,13 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
             )}
 
             <div className="spacer" />
-            {type.output ? (
+            {type.multiSheet ? (
               <div className="field">
                 <label>Formato de salida</label>
                 <p className="hint" style={{ marginTop: 0 }}>
-                  {type.label} genera un formato fijo de <b>2 hojas por proveedor</b>
-                  (CONFIRMACION DESCUENTO + DEPURACION con total), así que no hay selección de columnas.
+                  {type.label} genera un formato fijo por proveedor con las hojas{' '}
+                  {(type.confirmacion ? [type.confirmacion.sheet] : []).concat(type.sheets.map((s) => s.outputName)).map((n) => `"${n}"`).join(' + ')}
+                  {' '}(mismas columnas del Excel de origen), así que no hay selección de columnas.
                 </p>
               </div>
             ) : (

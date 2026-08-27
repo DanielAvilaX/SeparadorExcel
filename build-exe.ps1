@@ -95,6 +95,24 @@ if ($pdfOk) {
 }
 
 Write-Host "== 5/5 Ordenando archivos internos y comprimiendo ==" -ForegroundColor Cyan
+
+# FIX: el zip de Electron trae varios archivos (locales/*.pak, algunas dll) con fecha
+# 31/12/1979 -- un artefacto de como se extrae ese zip -- que cae ANTES del minimo que el
+# formato ZIP puede representar (1980-01-01). Compress-Archive revienta al toparse con uno
+# ("El valor de DateTimeOffset especificado no se puede convertir en la marca de tiempo de un
+# archivo Zip") en vez de ignorarlo. Se corrigen a "ahora" antes de comprimir.
+$minZipDate = Get-Date "1980-01-02T00:00:00"
+$maxZipDate = Get-Date "2107-12-30T23:59:59"
+$nowStamp = Get-Date
+$fixedDates = 0
+Get-ChildItem -Path $pkgFolder -Recurse -File | ForEach-Object {
+    if ($_.LastWriteTime -lt $minZipDate -or $_.LastWriteTime -gt $maxZipDate) {
+        $_.LastWriteTime = $nowStamp
+        $fixedDates++
+    }
+}
+if ($fixedDates -gt 0) { Write-Host "  Fechas fuera de rango corregidas: $fixedDates" -ForegroundColor Yellow }
+
 # Estos 3 son metadatos (licencias, version) que Electron/Chromium NO lee en tiempo de ejecucion,
 # asi que es seguro sacarlos de la vista. Todo lo demas junto al .exe (carpetas locales/ y
 # resources/, los .dll y .pak) SI son parte del runtime y deben quedar donde estan.
