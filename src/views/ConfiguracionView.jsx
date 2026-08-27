@@ -66,7 +66,8 @@ export default function ConfiguracionView({ userEmail, perfil, onPerfilChange, o
       const info = await checkForUpdate()
       setLastCheck(info)
       onUpdateInfo(info)
-      if (!info) toast.error('No se pudo consultar la versión (¿sin internet?).')
+      if (!info) toast.error('Supabase no está configurado.')
+      else if (info.error) toast.error(info.error)
     } finally {
       setChecking(false)
     }
@@ -136,7 +137,9 @@ export default function ConfiguracionView({ userEmail, perfil, onPerfilChange, o
         </button>
 
         {lastCheck && (
-          lastCheck.updateAvailable ? (
+          lastCheck.error ? (
+            <div className="banner bad" style={{ marginTop: 14 }}>{lastCheck.error}</div>
+          ) : lastCheck.updateAvailable ? (
             <div className="banner warn" style={{ marginTop: 14 }}>
               Hay una nueva versión disponible: <b>v{lastCheck.latest}</b>.
               {lastCheck.downloadUrl && (
