@@ -10,9 +10,11 @@ import ProcesarView from './views/ProcesarView'
 import ProveedoresView from './views/ProveedoresView'
 import CcView from './views/CcView'
 import PlantillaView from './views/PlantillaView'
+import ConfiguracionView from './views/ConfiguracionView'
 import { supabase, isConfigured } from './lib/supabase'
 import { confirmDialog } from './lib/confirm'
 import { checkForUpdate } from './lib/appVersion'
+import { getPerfil } from './lib/perfil'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 const EMPTY_SEND = {
@@ -26,6 +28,7 @@ export default function App() {
   const [send, setSend] = useState(EMPTY_SEND)
   const [updateInfo, setUpdateInfo] = useState(null)
   const [updateDismissed, setUpdateDismissed] = useState(false)
+  const [perfil, setPerfil] = useState(null)
 
   const [proc, setProc] = useState({
     typeKey: 'PACOM', parsed: null, file: null, prefix: '', selectedCols: [], templateId: null,
@@ -42,6 +45,12 @@ export default function App() {
   useEffect(() => {
     if (isConfigured() && session === undefined) return // esperar a resolver sesion primero
     checkForUpdate().then((info) => { if (info) setUpdateInfo(info) })
+  }, [session])
+
+  // Carga el perfil (nombre para mostrar + foto) una vez que hay sesion.
+  useEffect(() => {
+    if (!isConfigured() || !session) return
+    getPerfil().then(setPerfil).catch((e) => console.error('No se pudo cargar el perfil:', e.message))
   }, [session])
 
   // Progreso del envío (llega del proceso de Electron; sobrevive cambios de pestaña)
@@ -102,6 +111,7 @@ export default function App() {
           onChange={setView}
           userEmail={userEmail}
           onLogout={needsAuth ? () => supabase.auth.signOut() : null}
+          perfil={perfil}
         />
 
         <main className="app-main">
@@ -115,6 +125,14 @@ export default function App() {
               {view === 'proveedores' && <ProveedoresView />}
               {view === 'cc' && <CcView />}
               {view === 'plantilla' && <PlantillaView />}
+              {view === 'configuracion' && (
+                <ConfiguracionView
+                  userEmail={userEmail}
+                  perfil={perfil}
+                  onPerfilChange={setPerfil}
+                  onUpdateInfo={(info) => { if (info) setUpdateInfo(info) }}
+                />
+              )}
             </div>
 
             <p className="note">

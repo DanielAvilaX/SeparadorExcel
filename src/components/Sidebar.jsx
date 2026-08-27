@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileSpreadsheet, Users, Mail, FileText, LogOut, ChevronRight } from 'lucide-react'
+import { FileSpreadsheet, Users, Mail, FileText, Settings, LogOut, ChevronRight } from 'lucide-react'
 import logo from '../../assets/logo-separador.png'
 import { CURRENT_VERSION } from '../lib/appVersion'
 
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { key: 'proveedores', label: 'Proveedores', icon: Users },
   { key: 'cc', label: 'Copias (CC)', icon: Mail },
   { key: 'plantilla', label: 'Plantilla', icon: FileText },
+  { key: 'configuracion', label: 'Configuración', icon: Settings },
 ]
 
 // Envuelve una etiqueta para que aparezca/desaparezca con una animación de ancho+opacidad en vez
@@ -19,10 +20,10 @@ function Label({ collapsed, children }) {
   )
 }
 
-export default function Sidebar({ view, onChange, userEmail, onLogout }) {
+export default function Sidebar({ view, onChange, userEmail, onLogout, perfil }) {
   const [collapsed, setCollapsed] = useState(false)
   const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'MM'
-  const label = userEmail || 'María Morales'
+  const label = perfil?.display_name || userEmail || 'María Morales'
 
   return (
     <aside className={`sidebar${collapsed ? ' is-collapsed' : ''}`}>
@@ -65,7 +66,11 @@ export default function Sidebar({ view, onChange, userEmail, onLogout }) {
 
         <div className="sb-footer">
           <div className="sb-user">
-            <span className="av">{initials}</span>
+            {perfil?.avatar_url ? (
+              <img className="av av-img" src={perfil.avatar_url} alt="" />
+            ) : (
+              <span className="av">{initials}</span>
+            )}
             <Label collapsed={collapsed}>
               <span className="sb-user-email" title={label}>{label}</span>
             </Label>
