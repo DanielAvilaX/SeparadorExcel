@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import logo from '../../assets/logo-separador.png'
+import loginVideo from '../../assets/login-bg.mp4'
+import LoginNetwork from './LoginNetwork'
 
 export default function Login() {
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
@@ -52,9 +54,27 @@ export default function Login() {
   }
 
   return (
-    <>
-      <div className="atmos"><span className="b1" /><span className="b2" /><span className="b3" /></div>
-      <div className="login-wrap">
+    <div className="login-split">
+      {/* Panel izquierdo: video de fondo con degradado verde. Oculto en pantallas angostas
+          (móvil/ventana muy chica) -- ver media query en theme.css. */}
+      <div className="login-video-panel">
+        <video className="login-video" autoPlay muted loop playsInline>
+          <source src={loginVideo} type="video/mp4" />
+        </video>
+        <div className="login-video-gradient" />
+        <div className="login-video-content">
+          <div className="brand">
+            <img className="mark" src={logo} alt="" aria-hidden="true" />
+            <div><h1>Separador &amp; Envío</h1><p>Cruz Verde</p></div>
+          </div>
+          <p className="login-tagline">Divide tu Excel por proveedor y envía cada archivo solo, en un clic.</p>
+          <p className="login-tagline-sub">Sin macros, sin copiar y pegar filas a mano.</p>
+        </div>
+      </div>
+
+      {/* Panel derecho: formulario, con la red de líneas verdes reactiva al mouse detrás. */}
+      <div className="login-form-panel">
+        <LoginNetwork />
         <form className="glass login-card" onSubmit={mode === 'signin' ? submitSignIn : submitSignUp}>
           <div className="brand" style={{ justifyContent: 'center', marginBottom: 20 }}>
             <img className="mark" src={logo} alt="" aria-hidden="true" />
@@ -105,6 +125,6 @@ export default function Login() {
           </p>
         </form>
       </div>
-    </>
+    </div>
   )
 }

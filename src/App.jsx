@@ -22,7 +22,6 @@ const EMPTY_SEND = {
 }
 
 export default function App() {
-  const [theme, setTheme] = useState('light')
   const [view, setView] = useState('procesar')
   const [session, setSession] = useState(undefined)
   const [send, setSend] = useState(EMPTY_SEND)
@@ -32,8 +31,6 @@ export default function App() {
   const [proc, setProc] = useState({
     typeKey: 'PACOM', parsed: null, file: null, prefix: '', selectedCols: [], templateId: null,
   })
-
-  useEffect(() => { document.documentElement.setAttribute('data-theme', theme) }, [theme])
 
   useEffect(() => {
     if (!isConfigured()) { setSession(null); return }
@@ -102,8 +99,6 @@ export default function App() {
 
       <div className="wrap">
         <TopBar
-          theme={theme}
-          onToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
           userEmail={userEmail}
           onLogout={needsAuth ? () => supabase.auth.signOut() : null}
         />

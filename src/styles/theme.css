@@ -38,38 +38,8 @@
   --font: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink:#E9F5EC; --ink-soft:#AFC8BA; --ink-faint:#7D998A;
-    --bg-0:#071711; --bg-1:#0C241A;
-    --panel-glass:rgba(18,40,29,0.50); --panel-glass-brd:rgba(120,220,160,0.22);
-    --clay:#12271C; --clay-hi:rgba(120,230,165,0.10); --clay-lo:rgba(0,0,0,0.55);
-    --cv-green:#2ED47A; --chip-good-bg:rgba(46,212,122,0.14); --chip-good-ink:#7CF0AF;
-    --chip-warn-bg:rgba(230,180,40,0.16); --chip-warn-ink:#F2CE6B;
-    --chip-bad-bg:rgba(230,90,90,0.16); --chip-bad-ink:#F0A0A0;
-    --shadow-glass:0 20px 60px rgba(0,0,0,0.55);
-  }
-}
-:root[data-theme="light"] {
-  --ink:#0E2419; --ink-soft:#3B5348; --ink-faint:#6B8378;
-  --bg-0:#EDF2EF; --bg-1:#F8FBF9;
-  --panel-glass:rgba(255,255,255,0.72); --panel-glass-brd:rgba(255,255,255,0.9);
-  --clay:#FFFFFF; --clay-hi:rgba(255,255,255,1); --clay-lo:rgba(20,70,45,0.11);
-  --cv-green:#00A651; --chip-good-bg:rgba(0,166,81,0.12); --chip-good-ink:#0A6B39;
-  --chip-warn-bg:rgba(214,158,0,0.14); --chip-warn-ink:#8A6300;
-  --chip-bad-bg:rgba(214,60,60,0.13); --chip-bad-ink:#A32828;
-  --shadow-glass:0 18px 50px rgba(0,70,35,0.14);
-}
-:root[data-theme="dark"] {
-  --ink:#E9F5EC; --ink-soft:#AFC8BA; --ink-faint:#7D998A;
-  --bg-0:#071711; --bg-1:#0C241A;
-  --panel-glass:rgba(18,40,29,0.50); --panel-glass-brd:rgba(120,220,160,0.22);
-  --clay:#12271C; --clay-hi:rgba(120,230,165,0.10); --clay-lo:rgba(0,0,0,0.55);
-  --cv-green:#2ED47A; --chip-good-bg:rgba(46,212,122,0.14); --chip-good-ink:#7CF0AF;
-  --chip-warn-bg:rgba(230,180,40,0.16); --chip-warn-ink:#F2CE6B;
-  --chip-bad-bg:rgba(230,90,90,0.16); --chip-bad-ink:#F0A0A0;
-  --shadow-glass:0 20px 60px rgba(0,0,0,0.55);
-}
+/* Siempre modo claro a propósito -- no hay selector de tema ni bloque para
+   prefers-color-scheme: dark. Los tokens de :root de arriba son los únicos que existen. */
 
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; padding: 0; min-height: 100vh; }
@@ -103,13 +73,6 @@ body {
 .brand p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-faint); }
 
 .bar-right { display:flex; align-items:center; gap:10px; }
-.toggle {
-  font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; color:var(--ink);
-  border:1px solid var(--panel-glass-brd); background:var(--panel-glass);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  padding:8px 14px; border-radius:40px;
-}
-.toggle:focus-visible { outline:3px solid var(--cv-green); outline-offset:2px; }
 .user {
   display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; border-radius: 40px;
   background: var(--panel-glass); border: 1px solid var(--panel-glass-brd);
@@ -481,9 +444,35 @@ body {
 .section-title h2 { margin:0; font-size:16px; font-weight:700; }
 .muted { color:var(--ink-faint); font-size:12.5px; }
 
-/* ---- login ---- */
-.login-wrap { min-height:100vh; display:grid; place-items:center; padding:22px; }
-.login-card { width:100%; max-width:400px; }
+/* ---- login (panel de video a la izquierda + formulario a la derecha) ---- */
+.login-split { min-height:100vh; display:grid; grid-template-columns: 1.1fr 1fr; }
+
+.login-video-panel { position:relative; overflow:hidden; background:var(--ink); }
+.login-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.75; }
+.login-video-gradient {
+  position:absolute; inset:0;
+  background:
+    linear-gradient(100deg, rgba(14,36,25,.25) 0%, rgba(14,36,25,.72) 55%, var(--ink) 100%),
+    linear-gradient(to top, var(--ink) 0%, rgba(14,36,25,.15) 40%, rgba(0,166,81,.35) 100%);
+}
+.login-video-content { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; padding:48px; color:#fff; }
+.login-video-content .brand { margin-bottom:18px; }
+.login-video-content .brand h1 { color:#fff; }
+.login-video-content .brand p { color:rgba(255,255,255,.72); }
+.login-tagline { max-width:360px; font-size:22px; font-weight:700; line-height:1.35; margin:0; letter-spacing:-0.3px; }
+.login-tagline-sub { max-width:360px; font-size:13.5px; color:rgba(255,255,255,.72); margin:8px 0 0; }
+
+.login-form-panel { position:relative; overflow:hidden; display:grid; place-items:center; padding:22px; background:var(--bg-0); }
+.login-net { position:absolute; inset:0; width:100%; height:100%; pointer-events:none;
+  mask-image: linear-gradient(to left, black 0%, black 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to left, black 0%, black 40%, transparent 100%); }
+.login-card { position:relative; z-index:1; width:100%; max-width:400px; }
+
+@media (max-width: 780px) {
+  .login-split { grid-template-columns: 1fr; }
+  .login-video-panel { display:none; }
+}
+
 .center-loader { min-height:100vh; display:grid; place-items:center; }
 
 /* ============================================================
