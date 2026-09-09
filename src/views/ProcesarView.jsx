@@ -87,6 +87,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
       const { blob, count, skippedRows } = await generateZip({
         rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn, prefix, type,
         numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns, extraSheets: parsed.extraSheets,
+        primarySharesSheetWith: parsed.primarySharesSheetWith,
       })
       downloadBlob(blob, `${type.key}_DOCUMENTOS_SEPARADOS.zip`)
       toast.success(`ZIP generado · ${count} archivo${count === 1 ? '' : 's'}.`)
@@ -122,6 +123,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
         rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn,
         prefix, type, onlyProviders: targets.map((t) => t.name),
         numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns, extraSheets: parsed.extraSheets,
+        primarySharesSheetWith: parsed.primarySharesSheetWith,
       })
       const fileMap = new Map(files.map((f) => [f.provider, f]))
 

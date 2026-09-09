@@ -249,6 +249,20 @@ export function parseBuffer(buf, type) {
     if (extra) extraSheets[def.key] = extra
   }
 
+  // FIX: si la hoja principal no tenía su PROPIO hint en este archivo y pickSheetName cayó
+  // (por ser "required") en la única hoja que había -- que resulta ser la MISMA hoja que otra
+  // hoja del tipo ya encontró por su propio hint -- no tiene sentido generar dos pestañas
+  // idénticas en la salida (una bien etiquetada y otra mal etiquetada como la principal).
+  // Caso real: el PACOM de septiembre solo trae "CONFIRMACION DESCUENTOS" (antes traía además
+  // "LISTAS DE PRODUCTOS"); sin este chequeo, cada proveedor recibiría una pestaña extra
+  // "LISTAS DE PRODUCTOS" con el mismo contenido de "CONFIRMACION DESCUENTO", mal etiquetada.
+  // Se sigue usando esa hoja para el rol principal (detectar proveedores/columnas), solo se
+  // omite su propia pestaña de salida (ver buildProviderWorkbook).
+  const primaryHadOwnMatch = !!pickSheetName(workbook, primaryDef.sheetHints, false)
+  const primarySharesSheetWith = !primaryHadOwnMatch
+    ? Object.keys(extraSheets).find((k) => extraSheets[k].sheetName === primary.sheetName) || null
+    : null
+
   // FIX: la lista de proveedores del archivo es la UNIÓN de los proveedores de TODAS las hojas
   // (no solo la principal). Antes, un proveedor que solo aparecía en una hoja secundaria (ej.
   // "PROXIMOS A VENCER" en Descuentos tiene 65 proveedores que NO están en "DEPURACION") nunca
@@ -261,7 +275,7 @@ export function parseBuffer(buf, type) {
   }
   const providers = [...providerSet].sort()
 
-  return { ...primary, providers, extraSheets }
+  return { ...primary, providers, extraSheets, primarySharesSheetWith }
 }
 
 // Lee el archivo y devuelve columnas, filas y la lista de proveedores encontrados.
@@ -513,12 +527,16 @@ function assertSheetIntegrity(label, sourceColumns, outputColumns, sourceRowCoun
 
 // Construye el workbook de un proveedor: la hoja de confirmación estática (si el tipo la
 // define) + una hoja por cada entrada de `type.sheets`, en orden.
-function buildProviderWorkbook(provider, type, primaryRows, columns, numericColumns, dateColumns, extraSheets, extraGroups) {
+// `primarySharesSheetWith`: si la hoja principal terminó siendo la MISMA hoja física que ya
+// cubre una hoja extra (ver nota en parseBuffer), se omite la pestaña propia de la principal
+// para no duplicar la misma información dos veces con una etiqueta equivocada.
+function buildProviderWorkbook(provider, type, primaryRows, columns, numericColumns, dateColumns, extraSheets, extraGroups, primarySharesSheetWith) {
   const wb = new ExcelJS.Workbook()
   if (type.confirmacion) addConfirmacionSheet(wb, type.confirmacion)
 
   for (const def of type.sheets) {
     if (def.primary) {
+      if (primarySharesSheetWith) continue
       addMirrorSheet(wb, def.outputName, primaryRows, columns, numericColumns, dateColumns, def.totalColumn)
     } else {
       const extra = extraSheets && extraSheets[def.key]
@@ -531,7 +549,7 @@ function buildProviderWorkbook(provider, type, primaryRows, columns, numericColu
 }
 
 // Genera un archivo Excel por proveedor. Devuelve [{ provider, filename, buffer }].
-export async function buildProviderFiles({ rows, columns, providerColumn, prefix = '', type = null, onlyProviders = null, numericColumns = null, dateColumns = null, extraSheets = null }) {
+export async function buildProviderFiles({ rows, columns, providerColumn, prefix = '', type = null, onlyProviders = null, numericColumns = null, dateColumns = null, extraSheets = null, primarySharesSheetWith = null }) {
   // FIX: validación temprana — si la columna de proveedor configurada no existe en los
   // encabezados detectados, antes se generaba un ZIP vacío sin ningún aviso. Ahora se lanza
   // un error explícito para que el problema se note de inmediato.
@@ -577,6 +595,9 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
   if (type?.sheets) {
     for (const def of type.sheets) {
       if (def.primary) {
+        // Si la principal comparte hoja física con una extra, su pestaña propia se omite (ver
+        // buildProviderWorkbook) -- no hay nada que validar para una pestaña que no se escribe.
+        if (primarySharesSheetWith) continue
         assertSheetIntegrity(def.outputName, columns, columns, rows.length - primarySkipped, [...groups.values()].reduce((s, a) => s + a.length, 0))
       } else if (extraSheets && extraSheets[def.key]) {
         const extra = extraSheets[def.key]
@@ -597,7 +618,7 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
     if (filter && !filter.has(provider)) continue
     const providerRows = groups.get(provider) || []
     const wb = type?.sheets
-      ? buildProviderWorkbook(provider, type, providerRows, columns, numericColumns, dateColumns, extraSheets, extraGroups)
+      ? buildProviderWorkbook(provider, type, providerRows, columns, numericColumns, dateColumns, extraSheets, extraGroups, primarySharesSheetWith)
       : await (async () => {
         // Fallback defensivo: no debería pasar (todos los tipos definen `sheets`), pero evita
         // dejar al usuario sin archivo si algún tipo llega mal configurado.
@@ -632,8 +653,8 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
 }
 
 // Devuelve un Blob (ZIP) y un resumen. `type` decide el formato de salida.
-export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null, numericColumns = null, dateColumns = null, extraSheets = null }) {
-  const files = await buildProviderFiles({ rows, columns, providerColumn, prefix, type, onlyProviders, numericColumns, dateColumns, extraSheets })
+export async function generateZip({ rows, columns, providerColumn, prefix = '', onlyProviders = null, type = null, numericColumns = null, dateColumns = null, extraSheets = null, primarySharesSheetWith = null }) {
+  const files = await buildProviderFiles({ rows, columns, providerColumn, prefix, type, onlyProviders, numericColumns, dateColumns, extraSheets, primarySharesSheetWith })
   const zip = new JSZip()
   files.forEach((f) => zip.file(f.filename, f.buffer))
   const blob = await zip.generateAsync({ type: 'blob' })

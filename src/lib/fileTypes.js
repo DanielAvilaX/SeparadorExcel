@@ -52,7 +52,10 @@ export const FILE_TYPES = [
       // columnas que el proveedor llena: FECHA INICIAL/FINAL, DIAS PARTICULARES, %DESCUENTO).
       // Antes esta hoja se generaba con una plantilla fija en blanco que IGNORABA por completo
       // estos datos de entrada; ahora se separa por proveedor igual que la lista de productos.
-      { key: 'confirmacion', outputName: 'CONFIRMACION DESCUENTO', sheetHints: ['CONFIRMACION DESCUENTO'] },
+      // El PACOM de septiembre en adelante llegó con la hoja renombrada en plural
+      // ("CONFIRMACION DESCUENTOS") y sin la hoja separada "LISTAS DE PRODUCTOS" -- se aceptan
+      // ambos nombres para no volver a romperse si cambia otra vez.
+      { key: 'confirmacion', outputName: 'CONFIRMACION DESCUENTO', sheetHints: ['CONFIRMACION DESCUENTO', 'CONFIRMACION DESCUENTOS'] },
       { key: 'productos', outputName: 'LISTAS DE PRODUCTOS', sheetHints: ['LISTAS DE PRODUCTOS', 'LISTA DE PRODUCTOS'], primary: true },
     ],
   },
