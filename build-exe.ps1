@@ -73,7 +73,8 @@ for ($i = 1; $i -le 4; $i++) {
         --app-version=$version `
         --overwrite `
         --asar `
-        --ignore="^/(src|scripts|node_modules|release|app-build|supabase|\.git|\.env.*|README\.md|MANUAL-DE-USO\.md|build-exe\.ps1)$"
+        --ignore="^/(src|scripts|node_modules|release|app-build|supabase|\.git|\.env.*|README\.md|MANUAL-DE-USO\.md|build-exe\.ps1)$" `
+        --ignore="^/assets/(login-bg\.mp4|logo-separador\.png)$"
     if ($LASTEXITCODE -eq 0) { $packagerOk = $true; break }
     Write-Host "  electron-packager fallo (intento $i/4), reintentando en 10s..." -ForegroundColor Yellow
     Start-Sleep -Seconds 10
@@ -84,8 +85,11 @@ $pkgFolder = Join-Path $root "$outDir\$appName-win32-x64"
 $asarPath = Join-Path $pkgFolder "resources\app.asar"
 $asarMb = [math]::Round((Get-Item $asarPath).Length / 1MB, 1)
 Write-Host "  app.asar: $asarMb MB"
-if ($asarMb -gt 5) {
-    Write-Host "  Aviso: app.asar se ve mas grande de lo esperado (>5MB) -- revisa a mano si se colo algo." -ForegroundColor Yellow
+# El video del login (dist/assets/login-bg-*.mp4, ~3.8MB) ya es parte legitima del bundle,
+# asi que el umbral considera eso -- si vuelve a dispararse, sospecha de node_modules colado
+# (el problema original que este chequeo detecto) antes que del video.
+if ($asarMb -gt 9) {
+    Write-Host "  Aviso: app.asar se ve mas grande de lo esperado (>9MB) -- revisa a mano si se colo algo." -ForegroundColor Yellow
 }
 
 if ($pdfOk) {
