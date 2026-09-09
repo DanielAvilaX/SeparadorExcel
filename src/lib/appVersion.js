@@ -1,7 +1,9 @@
-import { supabase, isConfigured } from './supabase'
-
 // Inyectada por vite.config.js desde package.json al compilar.
 export const CURRENT_VERSION = __APP_VERSION__
+
+// Repo público de GitHub: la API de releases se puede consultar sin autenticación (no hace
+// falta meter ningún token dentro de la app distribuida).
+const GITHUB_REPO = 'DanielAvilaX/SeparadorExcel'
 
 function parse(v) {
   return String(v ?? '').trim().replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0)
@@ -21,47 +23,53 @@ export function isNewer(remote, local) {
   return false
 }
 
-// Consulta la version publicada en Supabase (tabla app_version, actualizada a mano por Daniel
-// al publicar un nuevo build) y la compara contra la version compilada en esta copia de la app.
+// Consulta el último Release publicado en GitHub y lo compara contra la version compilada en
+// esta copia de la app. Nunca descarga ni instala nada solo -- solo informa (el botón de
+// "Descargar" del banner abre el link en el navegador, y el usuario decide cuándo actualizar).
 //
-// Devuelve null solo cuando no hay nada que consultar (Supabase no configurado) -- para el chequeo
-// silencioso automatico de App.jsx, que nunca debe molestar al usuario si falla. Cuando SÍ se
-// intentó consultar y falló, devuelve { error } con un mensaje que explica la causa real (la
-// tabla no existe todavía, no hay sesión, sin internet, etc.) para que un chequeo manual (botón
-// "Buscar actualización ahora" en Configuración) pueda mostrarla en vez de un "sin internet?"
-// genérico que despista cuando el problema real es, por ejemplo, que falta correr la migración.
+// Por qué GitHub y no una tabla en Supabase (como se hizo al principio): así Daniel no tiene
+// que acordarse de actualizar una fila a mano cada vez que publica un build -- basta con crear
+// el Release en GitHub (`gh release create vX.Y.Z archivo.zip`) y listo, la app lo detecta sola.
+//
+// Devuelve { error } con un mensaje explicando la causa real (sin internet, límite de peticiones
+// de GitHub, todavía no existe ningún Release, etc.) para que el chequeo manual ("Buscar
+// actualización ahora" en Configuración) pueda mostrarla en vez de un "sin internet?" genérico.
 export async function checkForUpdate() {
-  if (!isConfigured()) return null
   try {
-    const { data, error } = await supabase
-      .from('app_version')
-      .select('version, download_url, changelog')
-      .eq('id', 1)
-      .maybeSingle()
-    if (error) {
-      console.error('checkForUpdate:', error)
-      const missingTable = error.code === '42P01' || error.code === 'PGRST205'
-        || /relation .* does not exist/i.test(error.message || '')
-        || /could not find the table/i.test(error.message || '')
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+
+    if (res.status === 404) {
+      // Repo válido, pero todavía no se ha publicado ningún Release -- no es un error real.
+      return { current: CURRENT_VERSION, latest: null, updateAvailable: false, downloadUrl: '', changelog: '', error: null }
+    }
+    if (res.status === 403) {
       return {
         current: CURRENT_VERSION, latest: null, updateAvailable: false, downloadUrl: '', changelog: '',
-        error: missingTable
-          ? 'Falta crear la tabla de versión en Supabase: ejecuta supabase/migracion-version-app.sql en el SQL Editor.'
-          : `No se pudo consultar la versión (${error.message}).`,
+        error: 'GitHub limitó las consultas desde esta red por un momento. Intenta de nuevo en un rato.',
       }
     }
-    if (!data) {
+    if (!res.ok) {
       return {
         current: CURRENT_VERSION, latest: null, updateAvailable: false, downloadUrl: '', changelog: '',
-        error: 'La tabla de versión existe pero no tiene ninguna fila. Revisa supabase/migracion-version-app.sql.',
+        error: `No se pudo consultar GitHub (código ${res.status}).`,
       }
     }
+
+    const release = await res.json()
+    const latest = release.tag_name
+    // Se prefiere el primer .zip adjunto al Release; si no hay ninguno adjunto, se manda a la
+    // propia página del Release (ahí igual puede bajarlo a mano).
+    const asset = (release.assets || []).find((a) => a.name.toLowerCase().endsWith('.zip'))
+    const downloadUrl = asset ? asset.browser_download_url : release.html_url
+
     return {
       current: CURRENT_VERSION,
-      latest: data.version,
-      updateAvailable: isNewer(data.version, CURRENT_VERSION),
-      downloadUrl: data.download_url || '',
-      changelog: data.changelog || '',
+      latest,
+      updateAvailable: isNewer(latest, CURRENT_VERSION),
+      downloadUrl,
+      changelog: release.body || '',
       error: null,
     }
   } catch (e) {

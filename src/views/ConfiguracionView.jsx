@@ -66,8 +66,7 @@ export default function ConfiguracionView({ userEmail, perfil, onPerfilChange, o
       const info = await checkForUpdate()
       setLastCheck(info)
       onUpdateInfo(info)
-      if (!info) toast.error('Supabase no está configurado.')
-      else if (info.error) toast.error(info.error)
+      if (info.error) toast.error(info.error)
     } finally {
       setChecking(false)
     }
