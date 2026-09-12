@@ -106,8 +106,14 @@ async function downloadAndPrepareUpdate(url, onProgress) {
   }
 }
 
-// Arma y lanza el .bat que espera a que este proceso (por pid) termine, reemplaza los archivos
-// con robocopy, y se borra a sí mismo. Hay que llamarlo ANTES de app.quit().
+// Arma y lanza el .bat que espera a que este proceso (por pid) termine y reemplaza los archivos
+// con robocopy. Hay que llamarlo ANTES de app.quit().
+//
+// A proposito NO se autoborra al terminar (antes tenia un "del %~f0"): un script que se lanza
+// oculto, desacoplado, y encima se autoelimina al terminar es exactamente el patron que buscan
+// las heuristicas de antivirus para droppers de malware. El .bat se queda en la carpeta temporal
+// (pesa unos pocos KB) y se limpia solo, sin apuro, la proxima vez que la app arranca --
+// ver cleanupOldUpdateArtifacts().
 function scheduleInstall({ sourceRoot, workDir, targetDir, pid }) {
   const batPath = path.join(os.tmpdir(), `separador-apply-update-${Date.now()}.bat`)
   const bat = [
@@ -123,7 +129,6 @@ function scheduleInstall({ sourceRoot, workDir, targetDir, pid }) {
     'timeout /t 2 /nobreak >NUL',
     `robocopy "${sourceRoot}" "${targetDir}" /E /IS /IT /R:5 /W:1 >NUL`,
     `rmdir /S /Q "${workDir}"`,
-    'del "%~f0"',
   ].join('\r\n')
   fs.writeFileSync(batPath, bat, 'utf8')
 
@@ -131,4 +136,18 @@ function scheduleInstall({ sourceRoot, workDir, targetDir, pid }) {
   child.unref()
 }
 
-module.exports = { downloadAndPrepareUpdate, scheduleInstall }
+// Borra los .bat de actualizaciones anteriores que hayan quedado en la carpeta temporal. Se llama
+// al arrancar la app (nunca justo despues de instalar), asi que para cuando corre, cualquier .bat
+// de una actualizacion previa ya hizo su trabajo (esperar, copiar, borrar su workDir) y solo
+// queda el archivo en si dando vueltas. Si por algun motivo uno sigue en uso, el borrado
+// simplemente falla en silencio -- Windows no deja borrar un archivo que cmd.exe tiene abierto.
+function cleanupOldUpdateArtifacts() {
+  let entries
+  try { entries = fs.readdirSync(os.tmpdir()) } catch { return }
+  for (const name of entries) {
+    if (!/^separador-apply-update-\d+\.bat$/.test(name)) continue
+    try { fs.rmSync(path.join(os.tmpdir(), name), { force: true }) } catch { /* sigue en uso, se intenta la proxima vez */ }
+  }
+}
+
+module.exports = { downloadAndPrepareUpdate, scheduleInstall, cleanupOldUpdateArtifacts }

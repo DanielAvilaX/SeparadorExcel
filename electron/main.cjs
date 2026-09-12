@@ -9,7 +9,7 @@ log(`boot: process.type=${process.type} typeofElectron=${typeof electron} keys=$
 
 const { app, BrowserWindow, ipcMain, protocol, shell } = electron
 const { sendViaOutlook, cancelSend } = require('./outlook.cjs')
-const { downloadAndPrepareUpdate, scheduleInstall } = require('./updater.cjs')
+const { downloadAndPrepareUpdate, scheduleInstall, cleanupOldUpdateArtifacts } = require('./updater.cjs')
 
 // Se guarda acá (no en el módulo del updater) porque el cierre real -- app.quit() -- lo decide
 // este archivo, cuando el usuario confirma en la pantalla de Configuración que ya puede cerrar.
@@ -65,6 +65,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  cleanupOldUpdateArtifacts()
+
   protocol.handle('app', (req) => {
     let rel = decodeURIComponent(new URL(req.url).pathname)
     if (!rel || rel === '/') rel = '/index.html'
