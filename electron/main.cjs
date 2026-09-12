@@ -9,6 +9,11 @@ log(`boot: process.type=${process.type} typeofElectron=${typeof electron} keys=$
 
 const { app, BrowserWindow, ipcMain, protocol, shell } = electron
 const { sendViaOutlook, cancelSend } = require('./outlook.cjs')
+const { downloadAndPrepareUpdate, scheduleInstall } = require('./updater.cjs')
+
+// Se guarda acá (no en el módulo del updater) porque el cierre real -- app.quit() -- lo decide
+// este archivo, cuando el usuario confirma en la pantalla de Configuración que ya puede cerrar.
+let pendingUpdate = null
 
 const DIST = path.join(__dirname, '..', 'dist')
 
@@ -104,6 +109,25 @@ app.whenReady().then(() => {
     sendViaOutlook(payload, (progress) => event.sender.send('outlook:progress', progress))
   )
   ipcMain.handle('outlook:cancel', () => { cancelSend(); return true })
+
+  // Descarga + extrae la actualización y deja armado (pero sin lanzar todavía) el reemplazo de
+  // archivos -- éste solo corre cuando la app de verdad cierra, ver 'update:confirm-close'.
+  ipcMain.handle('update:download', async (event, { url }) => {
+    const { sourceRoot, workDir } = await downloadAndPrepareUpdate(url, (p) => {
+      event.sender.send('update:progress', p)
+    })
+    pendingUpdate = { sourceRoot, workDir, targetDir: path.dirname(app.getPath('exe')) }
+    return { ok: true }
+  })
+
+  // El usuario confirmó en la UI que ya puede cerrarse la app para terminar de instalar.
+  ipcMain.handle('update:confirm-close', () => {
+    if (pendingUpdate) {
+      scheduleInstall({ ...pendingUpdate, pid: process.pid })
+      pendingUpdate = null
+    }
+    app.quit()
+  })
 
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

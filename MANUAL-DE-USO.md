@@ -46,8 +46,12 @@ Si solo quieres **separar y descargar el ZIP**, no necesitas Outlook.
 > CC que armas quedan solo en tu cuenta — otra persona que inicie sesión con su propio correo no
 > las ve ni las puede tocar, y arranca con su propia lista vacía para llenar desde cero.
 
-> 🔄 **Aviso de versión:** si alguien publica una versión más nueva de la app, verás un aviso arriba
-> con un botón para descargarla. Tu versión actual aparece al final de la pantalla (ej. `v0.2.0`).
+> 🔄 **Actualizaciones:** si hay una versión más nueva, te sale un aviso con un botón
+> **"Descargar e instalar"** — la app la descarga sola (con barra de progreso) y, cuando termina,
+> te pide cerrar la aplicación para terminar de instalarla. Vuelves a abrirla normal y ya tienes
+> la versión nueva; no hay que buscar ni pegar ningún archivo a mano. Tu versión actual aparece en
+> **Configuración** y al final de la pantalla (ej. `v0.2.2`). También puedes revisar a mano desde
+> **Configuración → Buscar actualización ahora**.
 
 ---
 

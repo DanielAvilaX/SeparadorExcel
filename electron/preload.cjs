@@ -11,4 +11,13 @@ contextBridge.exposeInMainWorld('desktop', {
     ipcRenderer.on('outlook:progress', handler)
     return () => ipcRenderer.removeListener('outlook:progress', handler)
   },
+  // Descarga + prepara una actualización (ver electron/updater.cjs). Devuelve cuando ya quedó
+  // lista para instalarse -- no cierra la app sola, eso lo decide confirmCloseForUpdate().
+  downloadUpdate: (url) => ipcRenderer.invoke('update:download', { url }),
+  onUpdateProgress: (cb) => {
+    const handler = (_e, data) => cb(data)
+    ipcRenderer.on('update:progress', handler)
+    return () => ipcRenderer.removeListener('update:progress', handler)
+  },
+  confirmCloseForUpdate: () => ipcRenderer.invoke('update:confirm-close'),
 })
