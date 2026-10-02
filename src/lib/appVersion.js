@@ -24,8 +24,8 @@ export function isNewer(remote, local) {
 }
 
 // Consulta el último Release publicado en GitHub y lo compara contra la version compilada en
-// esta copia de la app. Nunca descarga ni instala nada solo -- solo informa (el botón de
-// "Descargar" del banner abre el link en el navegador, y el usuario decide cuándo actualizar).
+// esta copia de la app. Nunca descarga ni instala nada solo -- solo informa; la descarga la
+// dispara el usuario con "Descargar e instalar" (ver electron/updater.cjs).
 //
 // Por qué GitHub y no una tabla en Supabase (como se hizo al principio): así Daniel no tiene
 // que acordarse de actualizar una fila a mano cada vez que publica un build -- basta con crear
@@ -58,7 +58,8 @@ export async function checkForUpdate() {
     }
 
     const release = await res.json()
-    const latest = release.tag_name
+    // El tag viene como "v0.2.3"; la pantalla ya le antepone la "v" (si no, se ve "vv0.2.3").
+    const latest = String(release.tag_name || '').replace(/^v/i, '')
     // Se prefiere el primer .zip adjunto al Release; si no hay ninguno adjunto, se manda a la
     // propia página del Release (ahí igual puede bajarlo a mano).
     const asset = (release.assets || []).find((a) => a.name.toLowerCase().endsWith('.zip'))
@@ -69,6 +70,8 @@ export async function checkForUpdate() {
       latest,
       updateAvailable: isNewer(latest, CURRENT_VERSION),
       downloadUrl,
+      // Solo un .zip adjunto se puede instalar desde la app; la página del Release no.
+      canAutoInstall: !!asset,
       changelog: release.body || '',
       error: null,
     }

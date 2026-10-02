@@ -54,10 +54,16 @@ function isNumericLike(s) {
 //   escribiéndose como "103"). Reportes reguardados por herramientas como Nitro Pro suelen dejar
 //   estas columnas como texto en vez de números reales, así que raw:true por sí solo no basta.
 // Devuelve null si el valor no es interpretable como número (columna no numérica / celda vacía).
-function parseLocaleNumber(v) {
+// `allowPercent`: acepta texto tipo "20%" / "12,5 %" y lo devuelve como fracción (0.2 / 0.125).
+// Solo se activa en columnas de porcentaje, para no convertir en silencio texto de otras columnas.
+function parseLocaleNumber(v, { allowPercent = false } = {}) {
   if (typeof v === 'number') return v
-  if (v == null) return null
+  if (v == null || v instanceof Date) return null
   let s = String(v).trim()
+  if (allowPercent && /%$/.test(s)) {
+    const n = parseLocaleNumber(s.slice(0, -1))
+    return n === null ? null : n / 100
+  }
   if (!isNumericLike(s)) return null
 
   let negative = false
@@ -95,29 +101,50 @@ function parseLocaleNumber(v) {
 // (mutando `rows`) cuando el texto es inequívocamente numérico. Así el resto del pipeline
 // (autoWidth, numFmt, escritura del xlsx de salida) trabaja siempre con el tipo correcto, sin
 // importar si la celda llegó como number real o como texto con formato de miles.
+//
+// Devuelve un Map columna -> tipo ('percent' | 'money' | null = General).
+//
+// Columnas genéricas (códigos, SKU, cantidades): solo se tratan como numéricas si TODAS sus
+// celdas lo son, para no convertir a medias una columna alfanumérica.
+// Columnas de porcentaje/dinero: basta con que tengan números. Antes también exigían el 100%,
+// y una sola celda de texto (ej. "N/A") le quitaba el formato a toda la columna -- el
+// descuento salía "0,2" en vez de "20%". Las celdas de texto sueltas se dejan tal cual.
 function detectNumericColumns(rows, columns) {
-  const numeric = new Set()
+  const numeric = new Map()
   columns.forEach((col) => {
     if (!col) return
-    let sawValue = false
+    let kind = classifyNumericColumn(col)
+    const allowPercent = kind === 'percent'
+    let sawNumber = false
     let allNumeric = true
-    for (const row of rows) {
+    let maxAbs = 0
+    // fromPercentText: el valor vino como "20%" (ya es fracción, no se reescala abajo).
+    const parsed = rows.map((row) => {
       const v = row[col]
-      if (v === '' || v == null) continue
-      sawValue = true
-      if (typeof v === 'number') continue
-      if (parseLocaleNumber(v) === null) {
-        allNumeric = false
-        break
-      }
+      if (v === '' || v == null) return null
+      const n = parseLocaleNumber(v, { allowPercent })
+      if (n === null) { allNumeric = false; return null }
+      sawNumber = true
+      const fromPercentText = typeof v === 'string' && /%$/.test(v.trim())
+      if (!fromPercentText) maxAbs = Math.max(maxAbs, Math.abs(n))
+      return { n, fromPercentText }
+    })
+    if (!sawNumber) return
+
+    let divisor = 1
+    if (kind === 'percent') {
+      // > 100 no puede ser un descuento (ej. "VALOR DESCUENTO" en pesos): se deja en General.
+      if (maxAbs > 100) kind = null
+      // Algunos reportes traen el descuento como 20 en vez de 0.2; con formato % saldría 2000%.
+      else if (maxAbs > 1) divisor = 100
     }
-    if (sawValue && allNumeric) {
-      numeric.add(col)
-      for (const row of rows) {
-        if (row[col] === '' || row[col] == null) continue
-        row[col] = parseLocaleNumber(row[col])
-      }
-    }
+    if (!allNumeric && !kind) return
+
+    numeric.set(col, kind)
+    rows.forEach((row, i) => {
+      const p = parsed[i]
+      if (p) row[col] = p.fromPercentText ? p.n : p.n / divisor
+    })
   })
   return numeric
 }
@@ -210,7 +237,13 @@ function parseSheetData(workbook, sheetHints, providerColumnHint, required) {
     .filter((r) => r.some((c) => String(c ?? '').trim() !== ''))
     .map((r) => {
       const obj = {}
-      columns.forEach((col, i) => { if (col) obj[col] = r[i] == null ? '' : r[i] })
+      // Texto con espacios/saltos de línea sobrantes (visto en "negociador": "NOMBRE\n") hace
+      // que la celda se vea en dos renglones en el archivo de salida.
+      columns.forEach((col, i) => {
+        if (!col) return
+        const v = r[i]
+        obj[col] = v == null ? '' : (typeof v === 'string' ? v.trim() : v)
+      })
       return obj
     })
 
@@ -339,11 +372,22 @@ const MONEY_FMT = '"$ "#,##0.00' // el "," y "." del código son placeholders de
 //   - Dinero:     "VR INVENTARIO", "Costo $"
 // Todo lo demás (SKU, Código, CODIGO R11, NIT, INV TOTAL, Unidades, Artículo...) es código/
 // identificador o cantidad -- se queda en General.
+// El orden importa: "VR DESCUENTO" / "VALOR DCTO" son dinero aunque digan descuento, pero
+// "%DESCUENTO" es porcentaje siempre. (Ver también la validación por rango en detectNumericColumns.)
 function classifyNumericColumn(name) {
   const n = (name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
-  if (n.includes('%') || n.includes('DESCUENTO') || n.includes('DCTO')) return 'percent'
-  if (n.includes('$') || n.includes('VR ')) return 'money'
+  if (n.includes('%')) return 'percent'
+  if (n.includes('$') || /\bVR\b/.test(n) || n.includes('VALOR')) return 'money'
+  if (n.includes('DESCUENTO') || n.includes('DCTO')) return 'percent'
   return null
+}
+
+// '0%' para porcentajes enteros (20%), '0.0#%' cuando tienen decimales (12,5%) -- con '0%' a
+// secas un 12,5% se vería "13%". (No '0.##%': deja el separador colgado, "50,%".)
+const PERCENT_DECIMAL_FMT = '0.0#%'
+function isWholePercent(v) {
+  const p = v * 100
+  return Math.abs(p - Math.round(p)) < 1e-9
 }
 
 // Hoja "CONFIRMACION DESCUENTO" de Descuentos: plantilla en blanco (sin datos reales de
@@ -441,10 +485,6 @@ function toNumber(v) {
   return n === null ? 0 : n
 }
 
-function money(n) {
-  return '$ ' + Math.round(n).toLocaleString('en-US')
-}
-
 // FIX: las columnas numéricas YA NO reciben un numFmt fijo único (antes '#,##0' para todas, sin
 // excepción). Ese formato es de "cantidad con separador de miles y sin decimales", y aplicado a
 // ciegas rompía columnas que no son cantidades: un código/SKU salía con un punto de separador
@@ -455,18 +495,27 @@ function money(n) {
 // classifyNumericColumn): porcentaje, dinero, o General (códigos/cantidades -- sin separador ni
 // redondeo, tal como venían). Las fechas siempre necesitan DATE_FMT (si no, Excel muestra el
 // serial crudo, ej. 46230 en vez de una fecha legible).
-function applyColumnFormats(ws, columns, numericColumns, dateColumns) {
+// `numericColumns` es el Map columna -> tipo de detectNumericColumns. `firstDataRow`: número de
+// fila (1-based) donde empiezan los datos, para el ajuste por celda de porcentajes con decimales.
+function applyColumnFormats(ws, columns, numericColumns, dateColumns, firstDataRow) {
   columns.forEach((col, i) => {
+    const column = ws.getColumn(i + 1)
     if (dateColumns && dateColumns.has(col)) {
-      ws.getColumn(i + 1).numFmt = DATE_FMT
+      column.numFmt = DATE_FMT
       return
     }
-    if (numericColumns && numericColumns.has(col)) {
-      const kind = classifyNumericColumn(col)
-      if (kind === 'percent') ws.getColumn(i + 1).numFmt = PERCENT_FMT
-      else if (kind === 'money') ws.getColumn(i + 1).numFmt = MONEY_FMT
-      // ninguno de los dos -> se queda en General (código/identificador/cantidad).
+    if (!numericColumns || !numericColumns.has(col)) return
+    const kind = numericColumns.get(col)
+    if (kind === 'percent') {
+      column.numFmt = PERCENT_FMT
+      for (let r = firstDataRow; r <= ws.rowCount; r++) {
+        const cell = ws.getRow(r).getCell(i + 1)
+        if (typeof cell.value === 'number' && !isWholePercent(cell.value)) cell.numFmt = PERCENT_DECIMAL_FMT
+      }
+    } else if (kind === 'money') {
+      column.numFmt = MONEY_FMT
     }
+    // null -> se queda en General (código/identificador/cantidad).
   })
 }
 
@@ -482,12 +531,15 @@ function addMirrorSheet(wb, name, rows, columns, numericColumns, dateColumns, to
     const totalIdx = columns.indexOf(totalColumn)
     const total = rows.reduce((s, r) => s + toNumber(r[totalColumn]), 0)
     const totalRow = new Array(columns.length).fill('')
-    if (totalIdx >= 0) totalRow[totalIdx] = money(total)
+    // Número real con formato de dinero (no texto): antes era el texto "$ 938,275,397" con
+    // separadores gringos, distinto a como se ven las demás celdas de dinero en Colombia.
+    if (totalIdx >= 0) totalRow[totalIdx] = total
     const tr = ws.addRow(totalRow)
     if (totalIdx >= 0) {
       const cell = tr.getCell(totalIdx + 1)
       cell.font = { bold: true }
       cell.alignment = { horizontal: 'right' }
+      cell.numFmt = MONEY_FMT
     }
     headerRowNumber = 2
   }
@@ -498,7 +550,7 @@ function addMirrorSheet(wb, name, rows, columns, numericColumns, dateColumns, to
   styleHeaderRow(ws.getRow(headerRowNumber))
   bordersFrom(ws, headerRowNumber)
   autoWidth(ws, columns, rows)
-  applyColumnFormats(ws, columns, numericColumns, dateColumns)
+  applyColumnFormats(ws, columns, numericColumns, dateColumns, headerRowNumber + 1)
   return ws
 }
 
@@ -553,9 +605,13 @@ export async function buildProviderFiles({ rows, columns, providerColumn, prefix
   // FIX: validación temprana — si la columna de proveedor configurada no existe en los
   // encabezados detectados, antes se generaba un ZIP vacío sin ningún aviso. Ahora se lanza
   // un error explícito para que el problema se note de inmediato.
-  if (columns && providerColumn && !columns.includes(providerColumn)) {
+  // Se valida contra las columnas del ARCHIVO (claves de cada fila), no contra `columns` (las
+  // elegidas para la salida): en Rotación el usuario puede desmarcar la columna de proveedor y
+  // eso no debe impedir separar por ella.
+  const sourceColumns = rows.length ? Object.keys(rows[0]) : columns
+  if (providerColumn && rows.length && !sourceColumns.includes(providerColumn)) {
     throw new Error(
-      `La columna de proveedor "${providerColumn}" no se encontró en el encabezado detectado (${columns.join(', ')}). Revisa la configuración del tipo de archivo o el encabezado del Excel de origen.`
+      `La columna de proveedor "${providerColumn}" no se encontró en el encabezado detectado (${sourceColumns.join(', ')}). Revisa la configuración del tipo de archivo o el encabezado del Excel de origen.`
     )
   }
 

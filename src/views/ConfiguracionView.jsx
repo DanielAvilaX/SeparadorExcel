@@ -1,16 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import Spinner from '../components/Spinner'
+import { UpdateProgress } from '../components/UpdateBanner'
 import { toast } from '../lib/toast'
 import { upsertPerfil, uploadAvatar, changePassword } from '../lib/perfil'
 import { checkForUpdate, CURRENT_VERSION } from '../lib/appVersion'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 
-function formatMB(bytes) {
-  return (bytes / (1024 * 1024)).toFixed(1)
-}
-
-export default function ConfiguracionView({ userEmail, perfil, onPerfilChange, onUpdateInfo }) {
+export default function ConfiguracionView({
+  userEmail, perfil, onPerfilChange, updateInfo, onUpdateInfo, upd, onStartUpdate, onCloseToInstall,
+}) {
   const fileRef = useRef(null)
 
   // ---- Perfil (nombre + foto) ----
@@ -64,16 +63,9 @@ export default function ConfiguracionView({ userEmail, perfil, onPerfilChange, o
 
   // ---- Actualizaciones ----
   const [checking, setChecking] = useState(false)
-  const [lastCheck, setLastCheck] = useState(null)
-  const [downloading, setDownloading] = useState(false)
-  const [downloadProgress, setDownloadProgress] = useState(null)
-  const [downloadError, setDownloadError] = useState('')
-  const [updateReady, setUpdateReady] = useState(false)
-
-  useEffect(() => {
-    if (!isDesktop || !window.desktop.onUpdateProgress) return
-    return window.desktop.onUpdateProgress((p) => setDownloadProgress(p))
-  }, [])
+  // Si al abrir la app ya se detectó una versión nueva, se muestra directo (sin tener que
+  // darle "Buscar actualización ahora" para que aparezca el botón de descargar).
+  const [lastCheck, setLastCheck] = useState(updateInfo?.updateAvailable ? updateInfo : null)
 
   async function checkNow() {
     setChecking(true)
@@ -85,32 +77,6 @@ export default function ConfiguracionView({ userEmail, perfil, onPerfilChange, o
     } finally {
       setChecking(false)
     }
-  }
-
-  // Descarga + prepara la actualización DESDE la app (sin abrir el navegador ni que el usuario
-  // maneje ningún zip) -- ver electron/updater.cjs. No instala nada todavía: solo deja lista la
-  // carpeta con la versión nueva, a la espera de que el usuario confirme el cierre.
-  async function downloadAndInstall() {
-    if (!lastCheck?.downloadUrl) return
-    setDownloading(true)
-    setDownloadProgress(null)
-    setDownloadError('')
-    try {
-      await window.desktop.downloadUpdate(lastCheck.downloadUrl)
-      setUpdateReady(true)
-    } catch (e) {
-      console.error(e)
-      setDownloadError(e.message || 'No se pudo descargar la actualización.')
-    } finally {
-      setDownloading(false)
-    }
-  }
-
-  // El reemplazo de archivos solo puede pasar con la app YA cerrada (Windows tiene el .exe y
-  // las .dll en uso mientras corre) -- por eso cerrar es lo que dispara la instalación, no algo
-  // que pase "mientras tanto". El usuario vuelve a abrir la app manualmente después.
-  function closeToInstall() {
-    window.desktop.confirmCloseForUpdate()
   }
 
   const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'MM'
@@ -172,35 +138,25 @@ export default function ConfiguracionView({ userEmail, perfil, onPerfilChange, o
         <div className="section-title"><h2>Actualizaciones</h2></div>
         <p className="muted" style={{ marginTop: 0 }}>Versión instalada: <b>v{CURRENT_VERSION}</b></p>
 
-        {updateReady ? (
+        {upd.status === 'ready' ? (
           <>
             <div className="banner good" style={{ marginBottom: 14 }}>
               Actualización lista. Cierra la aplicación para terminar de instalarla — al volver a
               abrirla ya vas a tener la versión nueva.
             </div>
-            <button className="btn btn-primary" type="button" onClick={closeToInstall}>
+            <button className="btn btn-primary" type="button" onClick={onCloseToInstall}>
               Cerrar ahora
             </button>
           </>
-        ) : downloading ? (
-          <div>
-            <p className="progress-label" style={{ margin: '0 0 8px' }}>
-              Descargando actualización…{' '}
-              {downloadProgress?.percent != null
-                ? `${downloadProgress.percent}% (${formatMB(downloadProgress.downloaded)} MB de ${formatMB(downloadProgress.total)} MB)`
-                : ''}
-            </p>
-            <div className="progress">
-              <i style={{ width: `${downloadProgress?.percent ?? 0}%` }} />
-            </div>
-          </div>
+        ) : upd.status === 'downloading' ? (
+          <UpdateProgress upd={upd} />
         ) : (
           <>
             <button className="btn btn-ghost" type="button" onClick={checkNow} disabled={checking}>
               {checking ? <span className="loader-row"><Spinner /> Buscando…</span> : 'Buscar actualización ahora'}
             </button>
 
-            {downloadError && <div className="banner bad" style={{ marginTop: 14 }}>{downloadError}</div>}
+            {upd.status === 'error' && <div className="banner bad" style={{ marginTop: 14 }}>{upd.error}</div>}
 
             {lastCheck && (
               lastCheck.error ? (
@@ -209,10 +165,10 @@ export default function ConfiguracionView({ userEmail, perfil, onPerfilChange, o
                 <div className="banner warn" style={{ marginTop: 14 }}>
                   Hay una nueva versión disponible: <b>v{lastCheck.latest}</b>.
                   {lastCheck.downloadUrl && (
-                    isDesktop ? (
+                    isDesktop && lastCheck.canAutoInstall ? (
                       <div style={{ marginTop: 10 }}>
-                        <button className="btn btn-primary" type="button" onClick={downloadAndInstall}>
-                          Descargar e instalar
+                        <button className="btn btn-primary" type="button" onClick={() => onStartUpdate(lastCheck.downloadUrl)}>
+                          {upd.status === 'error' ? 'Reintentar' : 'Descargar e instalar'}
                         </button>
                       </div>
                     ) : (

@@ -21,6 +21,11 @@ const EMPTY_SEND = {
   active: false, total: 0, current: 0, provider: '', cooldown: false,
   done: false, cancelled: false, cancelling: false, sent: [], failed: [], notSent: [], fatal: null,
 }
+// status: 'idle' | 'downloading' | 'ready' | 'error'
+const EMPTY_UPDATE = { status: 'idle', progress: null, error: '' }
+
+// ipcRenderer.invoke envuelve los errores como "Error invoking remote method 'x': Error: ...".
+const ipcMessage = (e) => String(e?.message || e || '').replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '')
 
 export default function App() {
   const [view, setView] = useState('procesar')
@@ -28,6 +33,9 @@ export default function App() {
   const [send, setSend] = useState(EMPTY_SEND)
   const [updateInfo, setUpdateInfo] = useState(null)
   const [updateDismissed, setUpdateDismissed] = useState(false)
+  // La descarga de la actualización vive acá (no en Configuración) para que no se pierda el
+  // progreso ni el "Cerrar ahora" si el usuario cambia de pestaña mientras descarga.
+  const [upd, setUpd] = useState(EMPTY_UPDATE)
   const [perfil, setPerfil] = useState(null)
 
   const [proc, setProc] = useState({
@@ -65,10 +73,40 @@ export default function App() {
     })
   }, [])
 
+  useEffect(() => {
+    if (!isDesktop || !window.desktop.onUpdateProgress) return
+    return window.desktop.onUpdateProgress((p) => {
+      setUpd((u) => (u.status === 'downloading' ? { ...u, progress: p } : u))
+    })
+  }, [])
+
+  async function startUpdate(url) {
+    if (!url || upd.status === 'downloading' || upd.status === 'ready') return
+    setUpd({ status: 'downloading', progress: null, error: '' })
+    try {
+      await window.desktop.downloadUpdate(url)
+      setUpd({ status: 'ready', progress: null, error: '' })
+    } catch (e) {
+      console.error(e)
+      setUpd({ status: 'error', progress: null, error: ipcMessage(e) || 'No se pudo descargar la actualización.' })
+    }
+  }
+
+  function closeToInstall() {
+    window.desktop.confirmCloseForUpdate()
+  }
+
   async function runSend(emails) {
     const targets = emails.map((e) => e.provider)
     setSend({ ...EMPTY_SEND, active: true, total: emails.length })
-    const res = await window.desktop.sendEmails(emails)
+    let res
+    try {
+      res = await window.desktop.sendEmails(emails)
+    } catch (e) {
+      // Sin esto, un fallo del proceso de envío dejaba el modal en "Enviando…" para siempre.
+      console.error(e)
+      res = { results: [], cancelled: false, fatal: 'No se pudo completar el envío: ' + ipcMessage(e) }
+    }
     const okSet = new Set((res.results || []).filter((r) => r.ok).map((r) => r.provider))
     const failed = (res.results || []).filter((r) => !r.ok).map((r) => ({ provider: r.provider, message: r.message }))
     const failedSet = new Set(failed.map((f) => f.provider))
@@ -117,7 +155,13 @@ export default function App() {
         <main className="app-main">
           <div className="wrap">
             {!updateDismissed && (
-              <UpdateBanner info={updateInfo} onDismiss={() => setUpdateDismissed(true)} />
+              <UpdateBanner
+                info={updateInfo}
+                upd={upd}
+                onStart={startUpdate}
+                onCloseToInstall={closeToInstall}
+                onDismiss={() => setUpdateDismissed(true)}
+              />
             )}
 
             <div className="view" key={view}>
@@ -130,7 +174,11 @@ export default function App() {
                   userEmail={userEmail}
                   perfil={perfil}
                   onPerfilChange={setPerfil}
-                  onUpdateInfo={(info) => { if (info) setUpdateInfo(info) }}
+                  updateInfo={updateInfo}
+                  onUpdateInfo={(info) => { if (info && !info.error) setUpdateInfo(info) }}
+                  upd={upd}
+                  onStartUpdate={startUpdate}
+                  onCloseToInstall={closeToInstall}
                 />
               )}
             </div>

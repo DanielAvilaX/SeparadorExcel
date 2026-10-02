@@ -15,6 +15,10 @@ import { listTemplates, render, bodyToHtml, extractInlineImages, wrapEmailHtml }
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 
+// Cruce Excel <-> base sin depender de mayúsculas ni espacios repetidos: "Abbott  S.A.S" en el
+// Excel y "ABBOTT S.A.S" en la base son el mismo proveedor (antes quedaba "no está en la base").
+const providerKey = (s) => String(s ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().toUpperCase()
+
 export default function ProcesarView({ state, setState, runSend, sendActive }) {
   const { typeKey, parsed, file, prefix, selectedCols, templateId } = state
   const patch = (p) => setState((s) => ({ ...s, ...p }))
@@ -50,9 +54,14 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
 
   const dbIndex = useMemo(() => {
     const m = new Map()
-    db.forEach((p) => m.set(p.nombre, p))
+    db.forEach((p) => m.set(providerKey(p.nombre), p))
     return m
   }, [db])
+  const findDb = (name) => dbIndex.get(providerKey(name))
+
+  // Columnas de salida en el MISMO orden del Excel de origen (selectedCols guarda el orden en
+  // que se fueron marcando: desmarcar y volver a marcar una columna la mandaba al final).
+  const outputColumns = parsed ? parsed.columns.filter((c) => selectedCols.includes(c)) : []
 
   const match = useMemo(() => {
     if (!parsed || !parsed.providerColExists) return null
@@ -61,7 +70,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
     const sinCorreo = []
     const noParticipa = []
     for (const name of parsed.providers) {
-      const p = dbIndex.get(name)
+      const p = findDb(name)
       if (!p) { sinCorreo.push({ name, reason: 'no está en la base' }); continue }
       if (flag && p[flag] === false) { noParticipa.push({ name }); continue }
       if (p.activo && (p.emails || []).length > 0) conCorreo.push({ name, emails: p.emails })
@@ -85,7 +94,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
     setBusy(true)
     try {
       const { blob, count, skippedRows } = await generateZip({
-        rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn, prefix, type,
+        rows: parsed.rows, columns: outputColumns, providerColumn: parsed.providerColumn, prefix, type,
         numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns, extraSheets: parsed.extraSheets,
         primarySharesSheetWith: parsed.primarySharesSheetWith,
       })
@@ -97,7 +106,8 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
         toast.error(`⚠ ${skippedRows} fila${skippedRows === 1 ? '' : 's'} sin proveedor identificable no se incluyeron en ningún archivo (dato faltante o inválido en el Excel de origen).`)
       }
     } catch (e) {
-      console.error(e); toast.error('Error generando los archivos. Revisa la consola.')
+      // En la app empaquetada no hay consola a la vista: el mensaje real tiene que salir en pantalla.
+      console.error(e); toast.error('Error generando los archivos: ' + (e.message || e))
     } finally { setBusy(false) }
   }
 
@@ -120,7 +130,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
       const mes = new Date().toLocaleDateString('es', { month: 'long' })
 
       const files = await buildProviderFiles({
-        rows: parsed.rows, columns: selectedCols, providerColumn: parsed.providerColumn,
+        rows: parsed.rows, columns: outputColumns, providerColumn: parsed.providerColumn,
         prefix, type, onlyProviders: targets.map((t) => t.name),
         numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns, extraSheets: parsed.extraSheets,
         primarySharesSheetWith: parsed.primarySharesSheetWith,
@@ -134,7 +144,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
         // en línea (CID) porque Outlook no renderiza base64 embebido.
         const { html, images } = extractInlineImages(render(bodyToHtml(tpl.cuerpo), vars))
         // CC por cascada: excepción del proveedor para este tipo → default del tipo → General
-        const ccConfig = resolveCc(dbIndex.get(t.name), type, freshConfigs, freshDefaults)
+        const ccConfig = resolveCc(findDb(t.name), type, freshConfigs, freshDefaults)
         return {
           provider: t.name,
           to: t.emails,
@@ -261,7 +271,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
                       : (
                         <div className="chips">
                           {match.conCorreo.map((p) => {
-                            const cfg = resolveCc(dbIndex.get(p.name), type, ccConfigs, ccDefaults)
+                            const cfg = resolveCc(findDb(p.name), type, ccConfigs, ccDefaults)
                             const tip = `Para: ${p.emails.join(', ')}\nCC (${cfg ? cfg.nombre : 'sin copia'}): ${cfg && cfg.emails.length ? cfg.emails.join(', ') : '—'}`
                             return <span key={p.name} className="chip g" title={tip}>{p.name}</span>
                           })}
@@ -340,7 +350,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
             <div className="actions">
               <button
                 className={'btn ' + (isDesktop ? 'btn-ghost' : 'btn-primary')}
-                disabled={busy || preparing || sendActive || selectedCols.length === 0}
+                disabled={busy || preparing || sendActive || outputColumns.length === 0}
                 onClick={handleGenerate}
               >
                 {busy ? <><Spinner /> Generando…</> : 'Descargar ZIP'}

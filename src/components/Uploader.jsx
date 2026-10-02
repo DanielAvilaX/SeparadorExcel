@@ -33,7 +33,7 @@ export default function Uploader({ type, file, onParsed, onClear }) {
           onParsed(parsed, f)
         } catch (e) {
           console.error(e)
-          setErr('No se pudo procesar el archivo. ¿Es un Excel válido (.xlsx / .xls)?')
+          setErr(`No se pudo procesar el archivo. ¿Es un Excel válido (.xlsx / .xls)? Detalle: ${e.message || e}`)
         } finally {
           setReading(false)
         }
