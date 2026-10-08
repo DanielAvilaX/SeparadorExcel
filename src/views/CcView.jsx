@@ -3,16 +3,15 @@ import Spinner from '../components/Spinner'
 import { toast } from '../lib/toast'
 import { confirmDialog } from '../lib/confirm'
 import { isConfigured } from '../lib/supabase'
-import { FILE_TYPES } from '../lib/fileTypes'
 import { parseEmails, isEmail } from '../lib/providers'
 import {
   listCcConfigs, createCcConfig, updateCcConfig, deleteCcConfig,
   findDuplicateConfig, countConfigUsage, getCcDefaults, setCcDefault,
 } from '../lib/cc'
 
-const TYPES = FILE_TYPES.filter((t) => t.enabled && t.ccField)
-
-export default function CcView() {
+export default function CcView({ configs: splitConfigs }) {
+  // Copia por defecto de cada configuración que envía correos (las 3 de fábrica + las propias).
+  const TYPES = splitConfigs.filter((c) => c.definition.email)
   const [configs, setConfigs] = useState([])
   const [defaults, setDefaults] = useState({})
   const [selId, setSelId] = useState(null)

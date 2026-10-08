@@ -49,7 +49,12 @@ export async function countConfigUsage(id) {
     .select('id', { count: 'exact', head: true })
     .or(`cc_pacom.eq.${id},cc_rotacion.eq.${id},cc_descuentos.eq.${id}`)
   if (error) throw error
-  return count || 0
+  // También las excepciones de las configuraciones nuevas (si la migración ya existe).
+  const res = await supabase
+    .from('provider_config_settings')
+    .select('provider_id', { count: 'exact', head: true })
+    .eq('cc_config_id', id)
+  return (count || 0) + (res.error ? 0 : res.count || 0)
 }
 
 // Defaults por tipo: { PACOM: id|null, ROTACION: id|null, DESCUENTOS: id|null }
@@ -66,13 +71,13 @@ export async function setCcDefault(tipo, ccConfigId) {
   if (error) throw error
 }
 
-// Cascada: excepción del proveedor para el tipo → default del tipo → General.
-// Devuelve la configuración (objeto) o null si no hay ninguna.
-export function resolveCc(provider, type, configs, defaults) {
+// Cascada: excepción del proveedor para la configuración → default de la configuración → General.
+// `overrideId`: la CC propia del proveedor (ver ccOf en participation.js). Devuelve la
+// configuración de CC (objeto) o null si no hay ninguna.
+export function resolveCc(overrideId, typeKey, configs, defaults) {
   const byId = new Map(configs.map((c) => [c.id, c]))
-  const overrideId = provider && type && type.ccField ? provider[type.ccField] : null
   if (overrideId && byId.has(overrideId)) return byId.get(overrideId)
-  const defId = defaults && type ? defaults[type.key] : null
+  const defId = defaults && typeKey ? defaults[typeKey] : null
   if (defId && byId.has(defId)) return byId.get(defId)
   return configs.find((c) => c.es_general) || null
 }

@@ -4,18 +4,17 @@ import Spinner from '../components/Spinner'
 import { toast } from '../lib/toast'
 import { confirmDialog } from '../lib/confirm'
 import { isConfigured } from '../lib/supabase'
-import { FILE_TYPES } from '../lib/fileTypes'
 import {
   listProviders, addProvider, updateProvider, deleteProvider, deleteAllProviders,
   bulkUpsertProviders, parseProvidersFile, parseEmails, isEmail,
-  setTypeFlag, setTypeFlagMany, setFieldMany,
 } from '../lib/providers'
+import { listSettings, enviaOf, ccOf, setEnviaMany, setCcMany, patchSettings } from '../lib/participation'
 import { listCcConfigs, getCcDefaults } from '../lib/cc'
 import { downloadBlob } from '../lib/excel'
 
-const TYPES = FILE_TYPES.filter((t) => t.enabled && t.flag)
-
-export default function ProveedoresView() {
+export default function ProveedoresView({ configs }) {
+  // Una pestaña por cada configuración que envía correos (las 3 de fábrica + las propias).
+  const TYPES = configs.filter((c) => c.definition.email)
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -34,10 +33,14 @@ export default function ProveedoresView() {
 
   const [ccConfigs, setCcConfigs] = useState([])
   const [ccDefaults, setCcDefaults] = useState({})
+  const [settings, setSettings] = useState(new Map())
 
   async function load() {
     setLoading(true); setError('')
-    try { setRows(await listProviders()) }
+    try {
+      const [r, s] = await Promise.all([listProviders(), listSettings()])
+      setRows(r); setSettings(s)
+    }
     catch (e) { console.error(e); setError(e.message || 'No se pudo cargar la lista.') }
     finally { setLoading(false) }
   }
@@ -128,37 +131,41 @@ export default function ProveedoresView() {
   }
 
   // ---- Pestañas por tipo ----
-  async function toggleFlag(p, flag) {
-    const value = !p[flag]
-    setRows((rs) => rs.map((r) => (r.id === p.id ? { ...r, [flag]: value } : r)))
-    try { await setTypeFlag(p.id, flag, value) }
+  // Cambio optimista: las 3 de fábrica guardan en columnas de providers; las nuevas, en settings.
+  function applyLocal(ids, cfg, kind, value) {
+    const idset = new Set(ids)
+    if (kind === 'envia' && cfg.builtinFlag) setRows((rs) => rs.map((r) => (idset.has(r.id) ? { ...r, [cfg.builtinFlag]: value } : r)))
+    else if (kind === 'cc' && cfg.builtinCcField) setRows((rs) => rs.map((r) => (idset.has(r.id) ? { ...r, [cfg.builtinCcField]: value } : r)))
+    else setSettings((s) => patchSettings(s, ids, cfg, kind === 'envia' ? { envia: value } : { cc_config_id: value }))
+  }
+
+  async function toggleFlag(p, cfg) {
+    const value = !enviaOf(p, cfg, settings)
+    applyLocal([p.id], cfg, 'envia', value)
+    try { await setEnviaMany([p.id], cfg, value) }
     catch (e) { console.error(e); toast.error('No se pudo guardar el cambio.'); load() }
   }
 
-  async function bulkFlag(flag, value, ids) {
+  async function bulkFlag(cfg, value, ids) {
     if (!ids.length) return
-    const idset = new Set(ids)
-    setRows((rs) => rs.map((r) => (idset.has(r.id) ? { ...r, [flag]: value } : r)))
-    try {
-      await setTypeFlagMany(ids, flag, value)
-      toast.success(value ? 'Marcados.' : 'Quitados.')
-    } catch (e) { console.error(e); toast.error('No se pudo guardar.'); load() }
+    applyLocal(ids, cfg, 'envia', value)
+    try { await setEnviaMany(ids, cfg, value); toast.success(value ? 'Marcados.' : 'Quitados.') }
+    catch (e) { console.error(e); toast.error('No se pudo guardar.'); load() }
   }
 
   // CC: excepción por proveedor para el tipo activo ('' = usar el por defecto)
-  async function changeCc(p, ccField, value) {
+  async function changeCc(p, cfg, value) {
     const id = value || null
-    setRows((rs) => rs.map((r) => (r.id === p.id ? { ...r, [ccField]: id } : r)))
-    try { await updateProvider(p.id, { [ccField]: id }) }
+    applyLocal([p.id], cfg, 'cc', id)
+    try { await setCcMany([p.id], cfg, id) }
     catch (e) { console.error(e); toast.error('No se pudo guardar la copia.'); load() }
   }
 
-  async function bulkCc(ccField, value, ids) {
+  async function bulkCc(cfg, value, ids) {
     if (!ids.length) return
     const id = value || null
-    const idset = new Set(ids)
-    setRows((rs) => rs.map((r) => (idset.has(r.id) ? { ...r, [ccField]: id } : r)))
-    try { await setFieldMany(ids, ccField, id); toast.success('Copia asignada.') }
+    applyLocal(ids, cfg, 'cc', id)
+    try { await setCcMany(ids, cfg, id); toast.success('Copia asignada.') }
     catch (e) { console.error(e); toast.error('No se pudo guardar.'); load() }
   }
 
@@ -196,14 +203,14 @@ export default function ProveedoresView() {
         </button>
         {TYPES.map((t) => (
           <button key={t.key} className={tab === t.key ? 'on' : ''} onClick={() => setTab(t.key)}>
-            {t.label} <span className="tab-count on-count">{rows.filter((r) => r[t.flag]).length}</span>
+            {t.label} <span className="tab-count on-count">{rows.filter((r) => enviaOf(r, t, settings)).length}</span>
           </button>
         ))}
       </div>
 
       {/* Panel con animación al cambiar de pestaña */}
       <div className="ptab-panel" key={tab}>
-        {tab === 'todos' ? (
+        {tab === 'todos' || !activeType ? (
           <TodosTab
             rows={rows} filtered={filtered} loading={loading} query={query} setQuery={setQuery}
             editingId={editingId} nombre={nombre} setNombre={setNombre} emailsStr={emailsStr} setEmailsStr={setEmailsStr}
@@ -215,7 +222,7 @@ export default function ProveedoresView() {
           <TypeTab
             type={activeType} loading={loading} query={query} setQuery={setQuery}
             filtered={filtered} toggleFlag={toggleFlag} bulkFlag={bulkFlag}
-            ccConfigs={ccConfigs} ccDefaults={ccDefaults} changeCc={changeCc} bulkCc={bulkCc}
+            ccConfigs={ccConfigs} ccDefaults={ccDefaults} changeCc={changeCc} bulkCc={bulkCc} settings={settings}
           />
         )}
       </div>
@@ -240,7 +247,7 @@ function TodosTab(props) {
         </div>
         <div className="row">
           <div className="grow">
-            <label className="muted">Nombre (debe coincidir EXACTO con el del Excel)</label>
+            <label className="muted">Nombre (igual al del Excel; no importan mayúsculas ni espacios de más)</label>
             <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="BEIERSDORF SA" />
           </div>
           <div className="grow">
@@ -310,11 +317,9 @@ function TodosTab(props) {
 }
 
 // ---------- Pestaña de un tipo (incluir / excluir del envío + copia CC) ----------
-function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFlag, ccConfigs, ccDefaults, changeCc, bulkCc }) {
-  const flag = type.flag
-  const ccField = type.ccField
+function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFlag, ccConfigs, ccDefaults, changeCc, bulkCc, settings }) {
   const ids = filtered.map((p) => p.id)
-  const incluidos = filtered.filter((p) => p[flag]).length
+  const incluidos = filtered.filter((p) => enviaOf(p, type, settings)).length
   const [bulkCcSel, setBulkCcSel] = useState('')
 
   // Nombre de la copia por defecto para este tipo (default del tipo → General)
@@ -332,8 +337,8 @@ function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFla
         </h2>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input className="input" style={{ maxWidth: 220 }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar…" />
-          <button className="mini edit" onClick={() => bulkFlag(flag, true, ids)}>Marcar todos</button>
-          <button className="mini del" onClick={() => bulkFlag(flag, false, ids)}>Quitar todos</button>
+          <button className="mini edit" onClick={() => bulkFlag(type, true, ids)}>Marcar todos</button>
+          <button className="mini del" onClick={() => bulkFlag(type, false, ids)}>Quitar todos</button>
         </div>
       </div>
 
@@ -348,7 +353,7 @@ function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFla
             <option value="">Por defecto ({defName})</option>
             {ccConfigs.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
-          <button className="mini edit" onClick={() => bulkCc(ccField, bulkCcSel, ids)}>Asignar esa copia a los visibles</button>
+          <button className="mini edit" onClick={() => bulkCc(type, bulkCcSel, ids)}>Asignar esa copia a los visibles</button>
         </div>
       )}
 
@@ -359,7 +364,7 @@ function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFla
       ) : (
         <div className="prov-list">
           {filtered.map((p) => {
-            const on = !!p[flag]
+            const on = enviaOf(p, type, settings)
             const sinCorreo = !(p.emails || []).length
             return (
               <div key={p.id} className={'prov-row' + (on ? ' on' : '')}>
@@ -373,8 +378,8 @@ function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFla
                   <select
                     className="cc-select"
                     title="Copia (CC) para este tipo"
-                    value={p[ccField] || ''}
-                    onChange={(e) => changeCc(p, ccField, e.target.value)}
+                    value={ccOf(p, type, settings) || ''}
+                    onChange={(e) => changeCc(p, type, e.target.value)}
                   >
                     <option value="">CC: por defecto</option>
                     {ccConfigs.map((c) => <option key={c.id} value={c.id}>CC: {c.nombre}</option>)}
@@ -386,7 +391,7 @@ function TypeTab({ type, loading, query, setQuery, filtered, toggleFlag, bulkFla
                   role="switch"
                   aria-checked={on}
                   title={on ? 'Incluido — clic para excluir' : 'Excluido — clic para incluir'}
-                  onClick={() => toggleFlag(p, flag)}
+                  onClick={() => toggleFlag(p, type)}
                 >
                   <span className="knob" />
                 </button>

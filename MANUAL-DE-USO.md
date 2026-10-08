@@ -230,16 +230,17 @@ No olvides **Guardar plantilla**.
 ## 5. Uso normal: separar y enviar
 
 ### Paso 1 — Elige el tipo de archivo
-Selecciona **PACOM**, **Rotación por canales** o **Descuentos**.
-Cada uno lee su archivo distinto, así que **elegir bien el tipo es clave**.
+Selecciona **PACOM**, **Rotación por canales**, **Descuentos** o cualquier configuración que hayas
+creado en **Separaciones** (ver sección 6). Cada una lee su archivo distinto, así que **elegir bien
+el tipo es clave**.
 
 ### Paso 2 — Carga el archivo
 Arrástralo a la zona indicada o haz clic para buscarlo.
 - Mientras lo lee verás una **barra de porcentaje**.
 - Al terminar aparece la **tarjeta del archivo** (nombre, tipo y peso) con botones
   **Reemplazar** / **Eliminar**.
-- Abajo verás la **columna de proveedor detectada** y un **prefijo** opcional para el nombre de los
-  archivos (ej. `PACOM_Agosto_`).
+- Abajo verás **por qué columna se separa** (y qué versión de la configuración se usa) y un
+  **prefijo** opcional para el nombre de los archivos (ej. `PACOM_Agosto_`).
 
 ### Paso 3 — Revisa antes de enviar
 La app cruza los proveedores del archivo contra tu lista:
@@ -250,7 +251,7 @@ La app cruza los proveedores del archivo contra tu lista:
 | 🟡 **Sin correo en la base** | No coinciden, están inactivos o no tienen correo. **A estos NO se les envía.** |
 
 Si alguien está en amarillo y **sí** debería recibir:
-1. Ve a **Proveedores** y agrégalo (con el nombre **exacto**).
+1. Ve a **Proveedores** y agrégalo (con el mismo nombre del Excel; no importan mayúsculas ni espacios de más).
 2. Vuelve a **Procesar archivo**: **el archivo sigue cargado** y la lista **se recalcula sola**.
    No tienes que volver a subir nada.
 
@@ -260,7 +261,7 @@ Si alguien está en amarillo y **sí** debería recibir:
 Antes de los botones verás **Plantilla del correo**: haz clic en la que quieras usar para este envío
 (la seleccionada queda marcada con **●** en verde). Se administran en la pestaña **Plantilla**.
 
-- **Descargar ZIP** → baja una carpeta comprimida con **un Excel por proveedor** (sin enviar correos).
+- **Descargar** → baja una carpeta comprimida con **un Excel por proveedor** (sin enviar correos).
 - **Enviar N correos** → envía a cada proveedor verde su archivo adjunto desde tu Outlook,
   usando la plantilla elegida. Te pide confirmación antes (y te recuerda cuál plantilla vas a usar).
 
@@ -296,23 +297,62 @@ También puedes verificarlo en **Elementos enviados** de tu Outlook.
 
 ---
 
-## 6. Qué genera cada tipo de archivo
+## 6. Separaciones: cómo se separa cada tipo de archivo
 
-| Tipo | Columna del proveedor | Qué recibe cada proveedor |
+En la pestaña **Separaciones** está la lista de configuraciones: las 3 de fábrica y las que tú crees.
+Lo que cambies aquí **es solo para tu cuenta**: no afecta a las demás personas.
+
+| Configuración de fábrica | Columna del proveedor | Qué recibe cada proveedor |
 |---|---|---|
-| **PACOM** | `PROVEEDOR` | 2 hojas: `CONFIRMACION DESCUENTO` + `LISTAS DE PRODUCTOS` |
+| **PACOM** | `PROVEEDOR` | `CONFIRMACION DESCUENTO` + `LISTAS DE PRODUCTOS` (si el archivo las trae) |
 | **Rotación por canales** | `NOMBRE_PROV` | 1 hoja con sus filas |
-| **Descuentos** | `PROVEEDOR` | 2 hojas: `CONFIRMACION DESCUENTO` + `DEPURACION` (con el total del inventario) |
+| **Descuentos** | `PROVEEDOR` | `CONFIRMACION DESCUENTO` (formulario) + `DEPURACION` (con el total) + `PROXIMOS A VENCER` (si existe) |
 
-> La app **encuentra sola** la fila de los encabezados, aunque no sea la primera.
+> 🎨 **Cada celda sale con el mismo formato y estilo del Excel original**: porcentajes (20%), moneda,
+> fechas, colores de los encabezados y anchos de columna. La app no cambia ni adivina formatos.
 
-> 🔢 **Números y fechas quedan con su formato correcto solos:** las columnas numéricas salen con
-> separador de miles (ej. `1.030`) y las de fecha con formato de fecha (ej. `8/08/2026`) en cada
-> archivo generado — no hace falta arreglarlas a mano en Excel después de descargar.
+### Crear o editar una configuración
+1. Elige una de la lista o haz clic en **+ Nueva configuración**.
+2. Sube un **Excel de ejemplo** (no se guarda; sirve para elegir hojas y columnas y ver el resultado).
+3. Define:
+   - **¿Cómo se separa?** Por una columna (un grupo por cada valor, ej. cada proveedor), por cantidad
+     de filas (Parte 1, Parte 2…) o sin separar.
+   - **Resultado:** un archivo por grupo, un solo archivo con una pestaña por grupo, o un solo archivo
+     con todo.
+   - **Filtros (opcional):** incluir solo, o excluir, las filas que cumplan una condición
+     (ej. *Excluir filas donde NOVEDAD está vacío*).
+   - **Hojas de cada archivo:** de qué hoja del Excel salen los datos, qué columnas lleva (todas, o
+     elegidas, en el orden que quieras y con otro nombre si hace falta), fila de total arriba, y
+     **hojas formulario** en blanco para que el proveedor las llene.
+   - **Usar para enviar correos:** la configuración aparece con su interruptor y su copia (CC) en
+     **Proveedores** y **Copias (CC)**, igual que PACOM.
+4. Revisa **"Así quedaría con el ejemplo"** (puedes descargar el archivo del primer grupo para verlo).
+5. Escribe una nota opcional y haz clic en **Guardar nueva versión**.
+
+### Historial de versiones
+Cada vez que guardas se crea una **versión nueva**; las anteriores nunca se borran. En el historial
+ves de cada versión la fecha, la nota y **cuántas veces se usó** (cada descarga o envío cuenta un uso).
+- **Restaurar** crea una versión nueva igual a la elegida (la actual queda en el historial).
+- En las de fábrica, **Restablecer original** las deja como venían.
 
 ---
 
-## 7. Si algo sale mal
+## 7. Separador express
+
+Para separar **cualquier Excel** una sola vez, sin enviar correos ni guardar nada:
+1. Abre **Separador express** y sube el archivo.
+2. La app propone una separación (por la columna de proveedor si la encuentra); ajústala con las
+   mismas opciones de las configuraciones.
+3. En **Resultado** marca o desmarca los grupos que quieres generar y haz clic en **Descargar**.
+
+Si lo vas a repetir, usa **Guardar configuración** al final y quedará en **Separaciones**.
+
+> La app **encuentra sola** la fila de los encabezados, aunque no sea la primera (también se puede
+> indicar a mano en cada hoja).
+
+---
+
+## 8. Si algo sale mal
 
 ### ❌ "No se pudo abrir Outlook de escritorio"
 **Causa:** Outlook clásico no está abierto o sin sesión.
@@ -336,9 +376,11 @@ o Outlook perdió conexión.
 **Solución:** compara el nombre carácter por carácter, corrígelo en **Proveedores** (o en el Excel)
 y vuelve a **Procesar** — se recalcula solo.
 
-### ⚠️ "El archivo no tiene la columna PROVEEDOR / NOMBRE_PROV"
-**Causa:** elegiste el **tipo equivocado**.
-**Solución:** cambia el tipo arriba (PACOM / Rotación / Descuentos) y vuelve a subirlo.
+### ⚠️ "Ninguna hoja del archivo tiene la columna PROVEEDOR / NOMBRE_PROV" o "El archivo no tiene la hoja…"
+**Causa:** elegiste el **tipo equivocado**, o el reporte cambió el nombre de una hoja o columna.
+**Solución:** cambia el tipo arriba (el archivo no se vuelve a subir: se recalcula solo). Si el reporte
+cambió de verdad, ajusta la configuración en **Separaciones** (el mensaje dice qué hojas y columnas
+trae el archivo).
 
 ### ⚠️ "No se pudo leer el archivo. ¿Es un Excel válido?"
 **Solución:** confirma que sea `.xlsx` o `.xls` y que **no esté abierto en Excel** al mismo tiempo.
@@ -365,7 +407,7 @@ antes de ejecutarlo.
 
 ---
 
-## 8. Recomendaciones importantes
+## 9. Recomendaciones importantes
 
 1. 🧪 **Antes de un envío grande, haz una prueba.** Agrega un proveedor de prueba con **tu propio
    correo**, procesa un archivo pequeño y envíate 1 correo. Verifica que llegue bien (adjunto,
@@ -379,7 +421,7 @@ antes de ejecutarlo.
 
 ---
 
-## 9. Preguntas frecuentes
+## 10. Preguntas frecuentes
 
 **¿Desde qué correo salen?**
 Desde **tu propia cuenta de Outlook**. Quedan en tu carpeta *Elementos enviados*, igual que si los
@@ -404,7 +446,7 @@ Sí, en otros programas. Solo no cierres la app ni Outlook.
 
 ---
 
-## 10. ¿Necesitas ayuda?
+## 11. ¿Necesitas ayuda?
 
 Si el error se repite o no está aquí, contacta a **Daniel** con:
 - Una **captura de pantalla** del error.

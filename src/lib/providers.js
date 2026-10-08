@@ -36,26 +36,6 @@ export async function addProvider({ nombre, emails, activo = true }) {
   return data
 }
 
-// Actualiza el flag de un tipo (envia_pacom / envia_rotacion / envia_descuentos)
-export async function setTypeFlag(id, flag, value) {
-  const { error } = await supabase.from('providers').update({ [flag]: value }).eq('id', id)
-  if (error) throw error
-}
-
-// Marca/desmarca el flag de un tipo para varios proveedores a la vez
-export async function setTypeFlagMany(ids, flag, value) {
-  if (!ids.length) return
-  const { error } = await supabase.from('providers').update({ [flag]: value }).in('id', ids)
-  if (error) throw error
-}
-
-// Actualiza un campo (ej. cc_pacom) para varios proveedores a la vez
-export async function setFieldMany(ids, field, value) {
-  if (!ids.length) return
-  const { error } = await supabase.from('providers').update({ [field]: value }).in('id', ids)
-  if (error) throw error
-}
-
 export async function updateProvider(id, patch) {
   const { error } = await supabase.from('providers').update(patch).eq('id', id)
   if (error) throw error

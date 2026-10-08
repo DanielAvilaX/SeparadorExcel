@@ -4,47 +4,55 @@ import Uploader from '../components/Uploader'
 import Spinner from '../components/Spinner'
 import HoverPreview from '../components/HoverPreview'
 import TemplatePreview from '../components/TemplatePreview'
+import RunPreview, { usePrepared } from '../components/RunPreview'
 import { toast } from '../lib/toast'
 import { confirmDialog } from '../lib/confirm'
-import { getType } from '../lib/fileTypes'
-import { generateZip, downloadBlob, buildProviderFiles, arrayBufferToBase64 } from '../lib/excel'
+import { buildFiles, sanitizeFileName } from '../lib/splitter/engine'
+import { downloadFiles, arrayBufferToBase64 } from '../lib/excel'
 import { isConfigured } from '../lib/supabase'
 import { listProviders } from '../lib/providers'
+import { listSettings, enviaOf, ccOf } from '../lib/participation'
 import { listCcConfigs, getCcDefaults, resolveCc } from '../lib/cc'
+import { registerUse } from '../lib/configs'
 import { listTemplates, render, bodyToHtml, extractInlineImages, wrapEmailHtml } from '../lib/template'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 
 // Cruce Excel <-> base sin depender de mayúsculas ni espacios repetidos: "Abbott  S.A.S" en el
-// Excel y "ABBOTT S.A.S" en la base son el mismo proveedor (antes quedaba "no está en la base").
+// Excel y "ABBOTT S.A.S" en la base son el mismo proveedor.
 const providerKey = (s) => String(s ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().toUpperCase()
 
-export default function ProcesarView({ state, setState, runSend, sendActive }) {
-  const { typeKey, parsed, file, prefix, selectedCols, templateId } = state
+const sendsEmail = (def) => !!def?.email && def.split?.by === 'column' && def.output === 'files'
+
+export default function ProcesarView({ state, setState, runSend, sendActive, configs }) {
+  const { typeKey, wb, file, prefix, selectedCols, selectedGroups, templateId } = state
   const patch = (p) => setState((s) => ({ ...s, ...p }))
 
   const [db, setDb] = useState([])
+  const [settings, setSettings] = useState(new Map())
   const [dbLoaded, setDbLoaded] = useState(false)
   const [templates, setTemplates] = useState([])
   const [ccConfigs, setCcConfigs] = useState([])
   const [ccDefaults, setCcDefaults] = useState({})
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(null)
   const [preparing, setPreparing] = useState(false)
 
-  const type = getType(typeKey)
+  const cfg = configs.find((c) => c.key === typeKey) || configs[0]
+  const { prepared, error } = usePrepared(wb, cfg?.definition, 0)
+  const emailMode = sendsEmail(cfg?.definition)
 
   // Se ejecuta en cada montaje (incluido al volver a la pestaña) → refresca la base
   // para reflejar proveedores/plantillas/CC sin re-subir el archivo.
   useEffect(() => {
     if (!isConfigured()) { setDbLoaded(true); return }
-    listProviders()
-      .then((rows) => setDb(rows))
+    Promise.all([listProviders(), listSettings()])
+      .then(([rows, s]) => { setDb(rows); setSettings(s) })
       .catch((e) => console.error('No se pudo cargar proveedores:', e.message))
       .finally(() => setDbLoaded(true))
     listTemplates()
       .then((rows) => {
         setTemplates(rows)
-        // Si la plantilla elegida ya no existe (o no hay), toma la primera
         if (rows.length && !rows.some((r) => r.id === templateId)) patch({ templateId: rows[0].id })
       })
       .catch((e) => console.error('No se pudieron cargar plantillas:', e.message))
@@ -59,56 +67,59 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
   }, [db])
   const findDb = (name) => dbIndex.get(providerKey(name))
 
-  // Columnas de salida en el MISMO orden del Excel de origen (selectedCols guarda el orden en
-  // que se fueron marcando: desmarcar y volver a marcar una columna la mandaba al final).
-  const outputColumns = parsed ? parsed.columns.filter((c) => selectedCols.includes(c)) : []
+  const columnChoices = prepared?.columnChoices || null
+  // Columnas de una corrida (solo configuraciones de una hoja con "todas las columnas", ej. Rotación).
+  const columnsOverride = columnChoices && selectedCols ? columnChoices.filter((c) => selectedCols.includes(c)) : null
 
   const match = useMemo(() => {
-    if (!parsed || !parsed.providerColExists) return null
-    const flag = type.flag
+    if (!prepared || !emailMode) return null
     const conCorreo = []
     const sinCorreo = []
     const noParticipa = []
-    for (const name of parsed.providers) {
+    for (const name of prepared.groupKeys) {
       const p = findDb(name)
       if (!p) { sinCorreo.push({ name, reason: 'no está en la base' }); continue }
-      if (flag && p[flag] === false) { noParticipa.push({ name }); continue }
+      if (!enviaOf(p, cfg, settings)) { noParticipa.push({ name }); continue }
       if (p.activo && (p.emails || []).length > 0) conCorreo.push({ name, emails: p.emails })
       else sinCorreo.push({ name, reason: !p.activo ? 'inactivo' : 'sin correo' })
     }
     return { conCorreo, sinCorreo, noParticipa }
-  }, [parsed, dbIndex, type])
+  }, [prepared, dbIndex, cfg, settings, emailMode])
 
-  function selectType(key) { patch({ typeKey: key, parsed: null, file: null, selectedCols: [] }) }
-  function onParsed(p, f) { patch({ parsed: p, file: f, selectedCols: p.columns }) }
-  function clearFile() { patch({ parsed: null, file: null, selectedCols: [] }) }
+  function selectType(key) { patch({ typeKey: key, selectedCols: null, selectedGroups: null }) }
+  function onLoaded(book, f) { patch({ wb: book, file: f, selectedCols: null, selectedGroups: null }) }
+  function clearFile() { patch({ wb: null, file: null, selectedCols: null, selectedGroups: null }) }
   function toggleCol(c) {
-    patch({ selectedCols: selectedCols.includes(c) ? selectedCols.filter((x) => x !== c) : [...selectedCols, c] })
+    const current = selectedCols || columnChoices
+    patch({ selectedCols: current.includes(c) ? current.filter((x) => x !== c) : [...current, c] })
   }
   function toggleAll() {
-    patch({ selectedCols: selectedCols.length === parsed.columns.length ? [] : parsed.columns })
+    const current = selectedCols || columnChoices
+    patch({ selectedCols: current.length === columnChoices.length ? [] : null })
   }
 
+  const zipName = `${cfg?.builtin ? cfg.key : sanitizeFileName(cfg?.label || 'separado')}_DOCUMENTOS_SEPARADOS.zip`
+
   async function handleGenerate() {
-    if (!parsed) return
+    if (!prepared) return
     setBusy(true)
+    setProgress(null)
     try {
-      const { blob, count, skippedRows } = await generateZip({
-        rows: parsed.rows, columns: outputColumns, providerColumn: parsed.providerColumn, prefix, type,
-        numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns, extraSheets: parsed.extraSheets,
-        primarySharesSheetWith: parsed.primarySharesSheetWith,
+      const only = !emailMode && selectedGroups ? [...selectedGroups] : null
+      if (only && !only.length) { toast.error('No hay grupos marcados para generar.'); return }
+      const files = await buildFiles(prepared, {
+        prefix, columnsOverride, onlyGroups: only, baseName: cfg.label,
+        onProgress: (done, total) => setProgress({ done, total }),
       })
-      downloadBlob(blob, `${type.key}_DOCUMENTOS_SEPARADOS.zip`)
-      toast.success(`ZIP generado · ${count} archivo${count === 1 ? '' : 's'}.`)
-      // FIX: antes se calculaba cuántas filas quedaban sin proveedor (y por lo tanto fuera de
-      // cualquier archivo) pero nunca se le avisaba al usuario -- quedaban perdidas en silencio.
-      if (skippedRows > 0) {
-        toast.error(`⚠ ${skippedRows} fila${skippedRows === 1 ? '' : 's'} sin proveedor identificable no se incluyeron en ningún archivo (dato faltante o inválido en el Excel de origen).`)
+      await downloadFiles(files, zipName)
+      registerUse(cfg)
+      toast.success(`Listo · ${files.length} archivo${files.length === 1 ? '' : 's'}.`)
+      if (files.skippedRows > 0) {
+        toast.error(`⚠ ${files.skippedRows} fila${files.skippedRows === 1 ? '' : 's'} sin valor en "${cfg.definition.split.column}" no se incluyeron en ningún archivo.`)
       }
     } catch (e) {
-      // En la app empaquetada no hay consola a la vista: el mensaje real tiene que salir en pantalla.
       console.error(e); toast.error('Error generando los archivos: ' + (e.message || e))
-    } finally { setBusy(false) }
+    } finally { setBusy(false); setProgress(null) }
   }
 
   async function handleSend() {
@@ -129,13 +140,8 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
       const [freshConfigs, freshDefaults] = await Promise.all([listCcConfigs(), getCcDefaults()])
       const mes = new Date().toLocaleDateString('es', { month: 'long' })
 
-      const files = await buildProviderFiles({
-        rows: parsed.rows, columns: outputColumns, providerColumn: parsed.providerColumn,
-        prefix, type, onlyProviders: targets.map((t) => t.name),
-        numericColumns: parsed.numericColumns, dateColumns: parsed.dateColumns, extraSheets: parsed.extraSheets,
-        primarySharesSheetWith: parsed.primarySharesSheetWith,
-      })
-      const fileMap = new Map(files.map((f) => [f.provider, f]))
+      const files = await buildFiles(prepared, { prefix, columnsOverride, onlyGroups: targets.map((t) => t.name) })
+      const fileMap = new Map(files.map((f) => [f.group, f]))
 
       const emails = targets.map((t) => {
         const f = fileMap.get(t.name)
@@ -143,8 +149,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
         // El cuerpo es HTML (puede traer imágenes pegadas): se extraen como imágenes
         // en línea (CID) porque Outlook no renderiza base64 embebido.
         const { html, images } = extractInlineImages(render(bodyToHtml(tpl.cuerpo), vars))
-        // CC por cascada: excepción del proveedor para este tipo → default del tipo → General
-        const ccConfig = resolveCc(findDb(t.name), type, freshConfigs, freshDefaults)
+        const ccConfig = resolveCc(ccOf(findDb(t.name), cfg, settings), cfg.key, freshConfigs, freshDefaults)
         return {
           provider: t.name,
           to: t.emails,
@@ -157,6 +162,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
         }
       })
 
+      registerUse(cfg)
       // El envío y su modal de progreso se manejan a nivel App (sobreviven cambios de pestaña)
       runSend(emails)
     } catch (e) {
@@ -166,35 +172,38 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
     }
   }
 
-  const ready = parsed && parsed.providerColExists
+  if (!cfg) return null
   const crossing = isConfigured() && !dbLoaded
+  const def = cfg.definition
+  const sheetNames = def.sheets.map((s) => `"${s.name}"`).join(' + ')
 
   return (
     <>
       {/* Paso 1 */}
       <div className="step">
-        <span className="n">1</span><h2>¿Qué archivo vas a procesar?</h2><span className="sub">· elige el tipo</span>
+        <span className="n">1</span><h2>¿Qué archivo vas a procesar?</h2><span className="sub">· elige el tipo (se crean y editan en Separaciones)</span>
       </div>
-      <TypeSelector selected={typeKey} onSelect={selectType} />
+      <TypeSelector configs={configs} selected={cfg.key} onSelect={selectType} />
 
       {/* Paso 2 */}
       <div className="step"><span className="n">2</span><h2>Carga el archivo</h2></div>
       <div className="glass">
         <div className="glass-head">
           <h2>Archivo de origen</h2>
-          <span className="pill-type">Tipo: {type.label}</span>
+          <span className="pill-type">Tipo: {cfg.label}</span>
         </div>
 
-        <Uploader type={type} file={file} onParsed={onParsed} onClear={clearFile} />
+        <Uploader file={file} onLoaded={onLoaded} onClear={clearFile} label={cfg.label}
+          hint={`Hojas de salida: ${sheetNames} · .xlsx, .xls`} />
 
-        {parsed && (
+        {wb && (
           <>
             <div className="fields">
               <div className="field">
-                <label>Columna de proveedor detectada</label>
+                <label>{def.split?.by === 'column' ? 'Se separa por la columna' : 'Separación'}</label>
                 <div className="inset">
-                  {parsed.providerColExists ? parsed.providerColumn : '⚠ no encontrada'}
-                  <span className="tag">{parsed.providerColExists ? 'automático' : 'revisar'}</span>
+                  {def.split?.by === 'column' ? def.split.column : def.split?.by === 'rows' ? `Cada ${def.split.size} filas` : 'Sin separar'}
+                  <span className="tag">{cfg.version ? `v${cfg.version}` : 'original'}</span>
                 </div>
               </div>
               <div className="field">
@@ -205,52 +214,49 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
               </div>
             </div>
 
-            {!parsed.providerColExists && (
-              <p className="hint" style={{ color: 'var(--bad)' }}>
-                El archivo no tiene la columna <b>{parsed.providerColumn}</b>. Verifica que sea un archivo de tipo <b>{type.label}</b>.
-              </p>
-            )}
+            {error && <div className="banner bad" style={{ marginTop: 16 }}>{error}</div>}
 
-            <div className="spacer" />
-            {type.multiSheet ? (
-              <div className="field">
-                <label>Formato de salida</label>
-                <p className="hint" style={{ marginTop: 0 }}>
-                  {type.label} genera un formato fijo por proveedor con las hojas{' '}
-                  {(type.confirmacion ? [type.confirmacion.sheet] : []).concat(type.sheets.map((s) => s.outputName)).map((n) => `"${n}"`).join(' + ')}
-                  {' '}(mismas columnas del Excel de origen), así que no hay selección de columnas.
-                </p>
-              </div>
-            ) : (
-              <div className="field">
-                <label>Columnas a incluir en cada archivo</label>
-                <div className="chips" style={{ maxHeight: 'none' }}>
-                  {parsed.columns.map((c) => (
-                    <button key={c} type="button"
-                      className={'chip ' + (selectedCols.includes(c) ? 'g' : 'w')}
-                      onClick={() => toggleCol(c)}>
-                      {selectedCols.includes(c) ? '✓ ' : '＋ '}{c}
-                    </button>
-                  ))}
+            {columnChoices && (
+              <>
+                <div className="spacer" />
+                <div className="field">
+                  <label>Columnas a incluir en cada archivo</label>
+                  <div className="chips" style={{ maxHeight: 'none' }}>
+                    {columnChoices.map((c) => {
+                      const on = !selectedCols || selectedCols.includes(c)
+                      return (
+                        <button key={c} type="button" className={'chip ' + (on ? 'g' : 'w')} onClick={() => toggleCol(c)}>
+                          {on ? '✓ ' : '＋ '}{c}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="hint">
+                    <button className="toggle" type="button" onClick={toggleAll}>Marcar / desmarcar todas</button>
+                  </div>
                 </div>
-                <div className="hint">
-                  <button className="toggle" type="button" onClick={toggleAll}>Marcar / desmarcar todas</button>
-                </div>
-              </div>
+              </>
             )}
           </>
         )}
       </div>
 
-      {/* Paso 3 — Revisión con cruce contra la base */}
-      {ready && (
+      {/* Paso 3 */}
+      {prepared && (
         <>
           <div className="step">
-            <span className="n">3</span><h2>Revisa antes de enviar</h2>
-            <span className="sub">· {parsed.providers.length} proveedores en el archivo</span>
+            <span className="n">3</span><h2>{emailMode ? 'Revisa antes de enviar' : 'Resultado'}</h2>
+            {prepared.def.split?.by !== 'none' && <span className="sub">· {prepared.groupKeys.length} {emailMode ? 'proveedores' : 'grupos'} en el archivo</span>}
           </div>
           <div className="glass">
-            {crossing ? (
+            <RunPreview
+              prepared={prepared}
+              hideGroups={emailMode}
+              selected={selectedGroups}
+              onSelectedChange={emailMode ? undefined : (s) => patch({ selectedGroups: s })}
+            />
+
+            {emailMode && (crossing ? (
               <div className="loader-row"><Spinner /> Cruzando con la base de proveedores…</div>
             ) : (
               <>
@@ -271,8 +277,8 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
                       : (
                         <div className="chips">
                           {match.conCorreo.map((p) => {
-                            const cfg = resolveCc(findDb(p.name), type, ccConfigs, ccDefaults)
-                            const tip = `Para: ${p.emails.join(', ')}\nCC (${cfg ? cfg.nombre : 'sin copia'}): ${cfg && cfg.emails.length ? cfg.emails.join(', ') : '—'}`
+                            const cc = resolveCc(ccOf(findDb(p.name), cfg, settings), cfg.key, ccConfigs, ccDefaults)
+                            const tip = `Para: ${p.emails.join(', ')}\nCC (${cc ? cc.nombre : 'sin copia'}): ${cc && cc.emails.length ? cc.emails.join(', ') : '—'}`
                             return <span key={p.name} className="chip g" title={tip}>{p.name}</span>
                           })}
                         </div>
@@ -296,7 +302,7 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
                 {match.noParticipa.length > 0 && (
                   <details className="no-participa">
                     <summary>
-                      <span className="dot" /> No participan en <b>{type.label}</b>
+                      <span className="dot" /> No participan en <b>{cfg.label}</b>
                       <span className="count">{match.noParticipa.length}</span>
                       <span className="muted"> · excluidos a propósito</span>
                     </summary>
@@ -304,58 +310,55 @@ export default function ProcesarView({ state, setState, runSend, sendActive }) {
                       {match.noParticipa.map((p) => <span key={p.name} className="chip gray">{p.name}</span>)}
                     </div>
                     <p className="hint" style={{ marginTop: 10 }}>
-                      Están en el archivo pero los apagaste para {type.label} en <b>Proveedores</b>. Si alguno debería
+                      Están en el archivo pero los apagaste para {cfg.label} en <b>Proveedores</b>. Si alguno debería
                       recibir, enciéndelo allí y vuelve aquí.
                     </p>
                   </details>
                 )}
-              </>
-            )}
 
-            {isDesktop && match.conCorreo.length > 0 && (
-              <div className="field" style={{ marginTop: 18 }}>
-                <label>Plantilla del correo</label>
-                {templates.length === 0 ? (
-                  <p className="hint" style={{ marginTop: 0 }}>
-                    No hay plantillas. Crea una en la pestaña <b>Plantilla</b>.
+                {isDesktop && match.conCorreo.length > 0 && (
+                  <div className="field" style={{ marginTop: 18 }}>
+                    <label>Plantilla del correo</label>
+                    {templates.length === 0 ? (
+                      <p className="hint" style={{ marginTop: 0 }}>No hay plantillas. Crea una en la pestaña <b>Plantilla</b>.</p>
+                    ) : (
+                      <>
+                        <div className="chips" style={{ maxHeight: 'none' }}>
+                          {templates.map((t) => (
+                            <HoverPreview key={t.id} content={<TemplatePreview tpl={t} />}>
+                              <button type="button" className={'chip ' + (t.id === templateId ? 'g' : 'w')}
+                                disabled={sendActive} onClick={() => patch({ templateId: t.id })}>
+                                {t.id === templateId ? '● ' : ''}{t.nombre}
+                              </button>
+                            </HoverPreview>
+                          ))}
+                        </div>
+                        <p className="hint" style={{ marginTop: 6 }}>Pasa el mouse sobre una plantilla para ver su contenido.</p>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {isDesktop ? (
+                  <p className="hint">
+                    Cada proveedor recibirá su archivo adjunto por correo, desde tu Outlook, con la plantilla elegida y
+                    su <b>copia (CC)</b> según lo configurado (pasa el mouse sobre un proveedor en verde para ver a quién va y con qué copia).
                   </p>
                 ) : (
-                  <>
-                    <div className="chips" style={{ maxHeight: 'none' }}>
-                      {templates.map((t) => (
-                        <HoverPreview key={t.id} content={<TemplatePreview tpl={t} />}>
-                          <button type="button"
-                            className={'chip ' + (t.id === templateId ? 'g' : 'w')}
-                            disabled={sendActive}
-                            onClick={() => patch({ templateId: t.id })}>
-                            {t.id === templateId ? '● ' : ''}{t.nombre}
-                          </button>
-                        </HoverPreview>
-                      ))}
-                    </div>
-                    <p className="hint" style={{ marginTop: 6 }}>Pasa el mouse sobre una plantilla para ver su contenido.</p>
-                  </>
+                  <p className="hint">El envío por correo está disponible en la <b>app de escritorio</b>. Aquí (web) puedes descargar el ZIP con un Excel por proveedor.</p>
                 )}
-              </div>
-            )}
+              </>
+            ))}
 
-            {isDesktop ? (
-              <p className="hint">
-                Cada proveedor recibirá su archivo adjunto por correo, desde tu Outlook, con la plantilla elegida y
-                su <b>copia (CC)</b> según lo configurado (pasa el mouse sobre un proveedor en verde para ver a quién va y con qué copia).
-              </p>
-            ) : (
-              <p className="hint">El envío por correo está disponible en la <b>app de escritorio</b>. Aquí (web) puedes descargar el ZIP con un Excel por proveedor.</p>
-            )}
             <div className="actions">
               <button
-                className={'btn ' + (isDesktop ? 'btn-ghost' : 'btn-primary')}
-                disabled={busy || preparing || sendActive || outputColumns.length === 0}
+                className={'btn ' + (emailMode && isDesktop ? 'btn-ghost' : 'btn-primary')}
+                disabled={busy || preparing || sendActive || (columnsOverride && !columnsOverride.length)}
                 onClick={handleGenerate}
               >
-                {busy ? <><Spinner /> Generando…</> : 'Descargar ZIP'}
+                {busy ? <><Spinner /> {progress ? `Generando ${progress.done}/${progress.total}…` : 'Generando…'}</> : 'Descargar'}
               </button>
-              {isDesktop && match.conCorreo.length > 0 && (
+              {emailMode && isDesktop && match && match.conCorreo.length > 0 && (
                 <button className="btn btn-primary" disabled={preparing || sendActive || busy} onClick={handleSend}>
                   {preparing
                     ? <><Spinner light /> Preparando…</>

@@ -1,19 +1,7 @@
-import { FILE_TYPES } from '../lib/fileTypes'
-
-export default function TypeSelector({ selected, onSelect }) {
+export default function TypeSelector({ configs, selected, onSelect }) {
   return (
     <div className="types">
-      {FILE_TYPES.map((t) => {
-        if (!t.enabled) {
-          return (
-            <button key={t.key} className="card soon" type="button" disabled aria-disabled="true">
-              <span className="badge-soon">Próximamente</span>
-              <span className="ico">{t.icon}</span>
-              <h3>{t.label}</h3>
-              <small>{t.description}</small>
-            </button>
-          )
-        }
+      {configs.map((t) => {
         const on = t.key === selected
         return (
           <button
@@ -26,7 +14,7 @@ export default function TypeSelector({ selected, onSelect }) {
             <span className="check" aria-hidden="true"></span>
             <span className="ico">{t.icon}</span>
             <h3>{t.label}</h3>
-            <small>{t.description}</small>
+            <small>{t.description || (t.definition.email ? 'Separa y envía por correo.' : 'Separa y descarga.')}</small>
           </button>
         )
       })}

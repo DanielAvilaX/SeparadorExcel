@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { FileSpreadsheet, Users, Mail, FileText, Settings, LogOut, ChevronRight } from 'lucide-react'
+import { FileSpreadsheet, Zap, SlidersHorizontal, Users, Mail, FileText, Settings, LogOut, ChevronRight } from 'lucide-react'
 import logo from '../../assets/logo-separador.png'
 import { CURRENT_VERSION } from '../lib/appVersion'
 
 const NAV_ITEMS = [
   { key: 'procesar', label: 'Procesar archivo', icon: FileSpreadsheet },
+  { key: 'express', label: 'Separador express', icon: Zap },
+  { key: 'separaciones', label: 'Separaciones', icon: SlidersHorizontal },
   { key: 'proveedores', label: 'Proveedores', icon: Users },
   { key: 'cc', label: 'Copias (CC)', icon: Mail },
   { key: 'plantilla', label: 'Plantilla', icon: FileText },

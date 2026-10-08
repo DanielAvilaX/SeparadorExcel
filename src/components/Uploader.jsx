@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react'
-import { parseBuffer, formatBytes } from '../lib/excel'
+import { formatBytes } from '../lib/excel'
+import { loadWorkbook } from '../lib/splitter/workbook'
 
-export default function Uploader({ type, file, onParsed, onClear }) {
+// Carga un Excel y lo entrega ya leído (libro de ExcelJS, con valores y estilos).
+// `hint`: texto bajo "Arrastra tu Excel aquí".
+export default function Uploader({ file, onLoaded, onClear, hint, label }) {
   const ref = useRef(null)
   const [hot, setHot] = useState(false)
-  const [reading, setReading] = useState(false)
+  const [stage, setStage] = useState(null) // null | 'reading' | 'parsing'
   const [progress, setProgress] = useState(0)
   const [err, setErr] = useState('')
 
@@ -13,7 +16,7 @@ export default function Uploader({ type, file, onParsed, onClear }) {
   function handle(f) {
     if (!f) return
     setErr('')
-    setReading(true)
+    setStage('reading')
     setProgress(0)
 
     const reader = new FileReader()
@@ -21,23 +24,23 @@ export default function Uploader({ type, file, onParsed, onClear }) {
       if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100))
     }
     reader.onerror = () => {
-      setReading(false)
+      setStage(null)
       setErr('No se pudo leer el archivo.')
     }
-    reader.onload = () => {
+    reader.onload = async () => {
       setProgress(100)
-      // Pequeña pausa para que la barra alcance el 100% antes de procesar (parseo síncrono).
-      setTimeout(() => {
-        try {
-          const parsed = parseBuffer(reader.result, type)
-          onParsed(parsed, f)
-        } catch (e) {
-          console.error(e)
-          setErr(`No se pudo procesar el archivo. ¿Es un Excel válido (.xlsx / .xls)? Detalle: ${e.message || e}`)
-        } finally {
-          setReading(false)
-        }
-      }, 120)
+      setStage('parsing')
+      // Un respiro para que se pinte "Analizando…" antes del trabajo pesado.
+      await new Promise((r) => setTimeout(r, 60))
+      try {
+        const wb = await loadWorkbook(reader.result, f.name)
+        onLoaded(wb, f)
+      } catch (e) {
+        console.error(e)
+        setErr(`No se pudo procesar el archivo. ¿Es un Excel válido (.xlsx / .xls)? Detalle: ${e.message || e}`)
+      } finally {
+        setStage(null)
+      }
     }
     reader.readAsArrayBuffer(f)
   }
@@ -51,24 +54,26 @@ export default function Uploader({ type, file, onParsed, onClear }) {
 
   return (
     <>
-      <input ref={ref} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onInputChange} />
+      <input ref={ref} type="file" accept=".xlsx,.xlsm,.xls" style={{ display: 'none' }} onChange={onInputChange} />
 
-      {/* Estado: leyendo (barra de porcentaje) */}
-      {reading ? (
+      {stage ? (
         <div className="drop reading" aria-live="polite">
           <div className="up" aria-hidden="true">📖</div>
-          <b>Leyendo archivo… <span className="progress-label">{progress}%</span></b>
+          {stage === 'reading' ? (
+            <b>Leyendo archivo… <span className="progress-label">{progress}%</span></b>
+          ) : (
+            <b>Analizando hojas, columnas y formatos…</b>
+          )}
           <div className="progress" style={{ marginTop: 12 }}>
-            <i style={{ width: `${progress}%` }} />
+            <i style={{ width: `${stage === 'reading' ? progress : 100}%` }} />
           </div>
         </div>
       ) : file ? (
-        /* Estado: archivo cargado (miniatura) */
         <div className="filecard">
           <div className="thumb" aria-hidden="true"><span>{ext || 'XLS'}</span></div>
           <div className="meta">
             <b title={file.name}>{file.name}</b>
-            <div className="sub">Excel · {type.label} · {formatBytes(file.size)}</div>
+            <div className="sub">Excel{label ? ` · ${label}` : ''} · {formatBytes(file.size)}</div>
           </div>
           <div className="fc-actions">
             <button className="mini edit" type="button" onClick={openPicker}>Reemplazar</button>
@@ -76,7 +81,6 @@ export default function Uploader({ type, file, onParsed, onClear }) {
           </div>
         </div>
       ) : (
-        /* Estado: vacío / arrastrando */
         <div
           className={'drop' + (hot ? ' hot' : '')}
           role="button"
@@ -94,7 +98,7 @@ export default function Uploader({ type, file, onParsed, onClear }) {
           ) : (
             <>
               <b>Arrastra tu Excel aquí o haz clic para buscar</b>
-              <p>Se lee la {type.sheetHints && type.sheetHints[0] ? `hoja "${type.sheetHints[0]}" (o la primera)` : 'primera hoja'} · .xlsx, .xls</p>
+              <p>{hint || '.xlsx, .xls'}</p>
             </>
           )}
         </div>

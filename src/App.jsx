@@ -11,10 +11,14 @@ import ProveedoresView from './views/ProveedoresView'
 import CcView from './views/CcView'
 import PlantillaView from './views/PlantillaView'
 import ConfiguracionView from './views/ConfiguracionView'
+import SeparacionesView from './views/SeparacionesView'
+import ExpressView from './views/ExpressView'
 import { supabase, isConfigured } from './lib/supabase'
 import { confirmDialog } from './lib/confirm'
 import { checkForUpdate } from './lib/appVersion'
 import { getPerfil } from './lib/perfil'
+import { loadConfigs } from './lib/configs'
+import { BUILTIN_CONFIGS } from './lib/splitter/builtins'
 
 const isDesktop = typeof window !== 'undefined' && window.desktop && window.desktop.isDesktop
 const EMPTY_SEND = {
@@ -39,8 +43,23 @@ export default function App() {
   const [perfil, setPerfil] = useState(null)
 
   const [proc, setProc] = useState({
-    typeKey: 'PACOM', parsed: null, file: null, prefix: '', selectedCols: [], templateId: null,
+    typeKey: 'PACOM', wb: null, file: null, prefix: '', selectedCols: null, selectedGroups: null, templateId: null,
   })
+  const [express, setExpress] = useState({ wb: null, file: null, analysis: null, definition: null, selected: null, prefix: '' })
+
+  // Configuraciones de separación del usuario (las 3 de fábrica + las propias). Mientras cargan,
+  // o si falla la base, se usan las de fábrica para no bloquear el trabajo.
+  const [configsState, setConfigsState] = useState({ configs: BUILTIN_CONFIGS.map((b) => ({ ...b, configId: null, builtin: true, versionId: null, version: null })), dbReady: false })
+  async function reloadConfigs() {
+    try {
+      const next = await loadConfigs()
+      setConfigsState(next)
+      return next.configs
+    } catch (e) {
+      console.error('No se pudieron cargar las configuraciones:', e.message)
+      return configsState.configs
+    }
+  }
 
   useEffect(() => {
     if (!isConfigured()) { setSession(null); return }
@@ -53,6 +72,11 @@ export default function App() {
   useEffect(() => {
     if (isConfigured() && session === undefined) return // esperar a resolver sesion primero
     checkForUpdate().then((info) => { if (info) setUpdateInfo(info) })
+  }, [session])
+
+  useEffect(() => {
+    if (isConfigured() && !session) return
+    reloadConfigs()
   }, [session])
 
   // Carga el perfil (nombre para mostrar + foto) una vez que hay sesion.
@@ -165,9 +189,11 @@ export default function App() {
             )}
 
             <div className="view" key={view}>
-              {view === 'procesar' && <ProcesarView state={proc} setState={setProc} runSend={runSend} sendActive={send.active} />}
-              {view === 'proveedores' && <ProveedoresView />}
-              {view === 'cc' && <CcView />}
+              {view === 'procesar' && <ProcesarView state={proc} setState={setProc} runSend={runSend} sendActive={send.active} configs={configsState.configs} />}
+              {view === 'express' && <ExpressView state={express} setState={setExpress} dbReady={configsState.dbReady} onConfigsChanged={reloadConfigs} />}
+              {view === 'separaciones' && <SeparacionesView configs={configsState.configs} dbReady={configsState.dbReady} onConfigsChanged={reloadConfigs} />}
+              {view === 'proveedores' && <ProveedoresView configs={configsState.configs} />}
+              {view === 'cc' && <CcView configs={configsState.configs} />}
               {view === 'plantilla' && <PlantillaView />}
               {view === 'configuracion' && (
                 <ConfiguracionView
