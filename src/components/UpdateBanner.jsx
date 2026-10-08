@@ -54,10 +54,10 @@ export default function UpdateBanner({ info, upd, onStart, onCloseToInstall, onD
           <div style={{ flex: 1, minWidth: 220 }}>
             <b>Actualización v{info.latest} lista</b>
             <p className="hint" style={{ margin: '4px 0 0' }}>
-              Cierra la aplicación para terminar de instalarla. Al volver a abrirla ya tendrás la versión nueva.
+              Dale a "Cerrar y actualizar": la app se cierra y en unos segundos se vuelve a abrir sola con la versión nueva.
             </p>
           </div>
-          <button className="btn btn-primary" type="button" onClick={onCloseToInstall}>Cerrar ahora</button>
+          <button className="btn btn-primary" type="button" onClick={onCloseToInstall}>Cerrar y actualizar</button>
         </>
       ) : (
         <>

@@ -141,11 +141,11 @@ export default function ConfiguracionView({
         {upd.status === 'ready' ? (
           <>
             <div className="banner good" style={{ marginBottom: 14 }}>
-              Actualización lista. Cierra la aplicación para terminar de instalarla — al volver a
-              abrirla ya vas a tener la versión nueva.
+              Actualización lista. Al darle "Cerrar y actualizar", la app se cierra y en unos segundos
+              se vuelve a abrir sola con la versión nueva.
             </div>
             <button className="btn btn-primary" type="button" onClick={onCloseToInstall}>
-              Cerrar ahora
+              Cerrar y actualizar
             </button>
           </>
         ) : upd.status === 'downloading' ? (

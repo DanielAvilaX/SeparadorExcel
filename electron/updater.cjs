@@ -4,11 +4,12 @@
 //   1) Descarga el .zip del Release de GitHub a una carpeta temporal, reportando progreso.
 //   2) Lo extrae con el `tar` que ya trae Windows 10/11 (bsdtar entiende .zip) -- no hace
 //      falta ninguna dependencia nueva de npm para esto.
-//   3) Arma un .bat temporal que espera a que ESTA app termine de cerrarse (recién ahí Windows
-//      libera el .exe y las .dll que tenía abiertas) y encima copia los archivos nuevos sobre
-//      la carpeta de instalación actual con robocopy.
-//   4) Lo lanza desacoplado (detached) ANTES de cerrar la app, para que siga vivo cuando el
-//      proceso principal ya no exista.
+//   3) Lanza un "ayudante" que espera a que ESTA app termine de cerrarse (recién ahí Windows
+//      libera el .exe y las .dll que tenía abiertas), copia los archivos nuevos sobre la carpeta
+//      de instalación y vuelve a abrir la app ya actualizada.
+//   4) El ayudante es el .exe de la versión NUEVA (el que se acaba de extraer) corriendo en modo
+//      Node (ELECTRON_RUN_AS_NODE): no abre ninguna ventana ni consola, y como corre desde la
+//      carpeta temporal, no bloquea los archivos que tiene que reemplazar.
 // El main.cjs es quien decide CUÁNDO cerrar la app (después de que el usuario confirma en la
 // pantalla de Configuración) -- este módulo solo deja todo listo para que ese cierre dispare
 // el reemplazo.
@@ -106,47 +107,83 @@ async function downloadAndPrepareUpdate(url, onProgress) {
   }
 }
 
-// Arma y lanza el .bat que espera a que este proceso (por pid) termine y reemplaza los archivos
-// con robocopy. Hay que llamarlo ANTES de app.quit().
-//
-// A proposito NO se autoborra al terminar (antes tenia un "del %~f0"): un script que se lanza
-// oculto, desacoplado, y encima se autoelimina al terminar es exactamente el patron que buscan
-// las heuristicas de antivirus para droppers de malware. El .bat se queda en la carpeta temporal
-// (pesa unos pocos KB) y se limpia solo, sin apuro, la proxima vez que la app arranca --
-// ver cleanupOldUpdateArtifacts().
-function scheduleInstall({ sourceRoot, workDir, targetDir, pid }) {
-  const batPath = path.join(os.tmpdir(), `separador-apply-update-${Date.now()}.bat`)
-  const bat = [
-    '@echo off',
-    ':wait',
-    `tasklist /FI "PID eq ${pid}" 2>NUL | find "${pid}" >NUL`,
-    'if not errorlevel 1 (',
-    '  timeout /t 1 /nobreak >NUL',
-    '  goto wait',
-    ')',
-    // Un respiro extra: procesos auxiliares de Electron (GPU, etc.) pueden tardar un
-    // instante mas en soltar sus archivos aunque el proceso principal ya no aparezca.
-    'timeout /t 2 /nobreak >NUL',
-    `robocopy "${sourceRoot}" "${targetDir}" /E /IS /IT /R:5 /W:1 >NUL`,
-    `rmdir /S /Q "${workDir}"`,
-  ].join('\r\n')
-  fs.writeFileSync(batPath, bat, 'utf8')
+// Script del ayudante (corre con el Node que trae el .exe de la versión nueva).
+// Antes era un .bat con tasklist | find + robocopy: lanzado desde la app sin consola propia, cada
+// comando abría su propia ventana negra y el "find" se quedaba esperando para siempre, así que
+// nunca llegaba a copiar nada (visto en un equipo real).
+const HELPER_SCRIPT = `
+// Electron trata los .asar como carpetas; sin esto, copiar resources/app.asar falla (ENOTDIR).
+process.noAsar = true
+const fs = require('fs')
+const path = require('path')
+const { spawn } = require('child_process')
+const [pid, sourceRoot, targetDir, exeName, logPath] = process.argv.slice(2)
+const log = (m) => { try { fs.appendFileSync(logPath, new Date().toISOString() + ' ' + m + '\\n') } catch {} }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const alive = (p) => { try { process.kill(p, 0); return true } catch (e) { return e.code === 'EPERM' } }
+;(async () => {
+  log('ayudante iniciado; esperando que cierre el proceso ' + pid)
+  const t0 = Date.now()
+  while (alive(Number(pid))) {
+    if (Date.now() - t0 > 10 * 60 * 1000) { log('la app no cerró en 10 minutos; se cancela'); return }
+    await sleep(500)
+  }
+  // Los procesos auxiliares de Electron (GPU, ventanas) pueden soltar sus archivos un poco después.
+  await sleep(1500)
+  let ok = false
+  for (let i = 1; i <= 30 && !ok; i++) {
+    try {
+      fs.cpSync(sourceRoot, targetDir, { recursive: true, force: true })
+      ok = true
+      log('archivos copiados (intento ' + i + ')')
+    } catch (e) {
+      log('intento ' + i + ' falló: ' + e.message)
+      await sleep(1000)
+    }
+  }
+  const exe = path.join(targetDir, exeName)
+  // La variable tiene que NO existir (vacía no basta): si existe, la app arrancaría en modo Node, sin ventana.
+  const env = { ...process.env }
+  delete env.ELECTRON_RUN_AS_NODE
+  delete env.ELECTRON_NO_ASAR
+  try {
+    spawn(exe, [], { cwd: targetDir, detached: true, stdio: 'ignore', env }).unref()
+    log((ok ? 'app reabierta: ' : 'NO se pudo actualizar; se reabre la versión anterior: ') + exe)
+  } catch (e) {
+    log('no se pudo reabrir la app: ' + e.message)
+  }
+})()
+`
 
-  const child = spawn('cmd.exe', ['/c', batPath], { detached: true, stdio: 'ignore', windowsHide: true })
+// Lanza el ayudante que termina la instalación cuando la app cierre. Hay que llamarlo ANTES de
+// app.quit(); el ayudante espera a que este proceso (pid) termine.
+function scheduleInstall({ sourceRoot, targetDir, pid }) {
+  const stamp = Date.now()
+  const scriptPath = path.join(os.tmpdir(), `separador-apply-update-${stamp}.cjs`)
+  const logPath = path.join(os.tmpdir(), 'separador-actualizacion.log')
+  fs.writeFileSync(scriptPath, HELPER_SCRIPT, 'utf8')
+
+  const exeName = fs.readdirSync(sourceRoot).find((f) => f.toLowerCase().endsWith('.exe'))
+  const currentExeName = path.basename(process.execPath)
+  const helperExe = path.join(sourceRoot, exeName)
+  const child = spawn(helperExe, [scriptPath, String(pid), sourceRoot, targetDir, currentExeName, logPath], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ELECTRON_NO_ASAR: '1' },
+  })
   child.unref()
 }
 
-// Borra los .bat de actualizaciones anteriores que hayan quedado en la carpeta temporal. Se llama
-// al arrancar la app (nunca justo despues de instalar), asi que para cuando corre, cualquier .bat
-// de una actualizacion previa ya hizo su trabajo (esperar, copiar, borrar su workDir) y solo
-// queda el archivo en si dando vueltas. Si por algun motivo uno sigue en uso, el borrado
-// simplemente falla en silencio -- Windows no deja borrar un archivo que cmd.exe tiene abierto.
+// Al arrancar: borra lo que dejaron actualizaciones anteriores en la carpeta temporal (scripts
+// del ayudante y carpetas de descarga). Si algo sigue en uso (ej. el ayudante terminando de
+// cerrarse), el borrado falla en silencio y se reintenta la próxima vez.
 function cleanupOldUpdateArtifacts() {
   let entries
   try { entries = fs.readdirSync(os.tmpdir()) } catch { return }
   for (const name of entries) {
-    if (!/^separador-apply-update-\d+\.bat$/.test(name)) continue
-    try { fs.rmSync(path.join(os.tmpdir(), name), { force: true }) } catch { /* sigue en uso, se intenta la proxima vez */ }
+    if (!/^separador-apply-update-\d+\.(bat|cjs)$/.test(name) && !/^separador-update-\d+$/.test(name)) continue
+    try { fs.rmSync(path.join(os.tmpdir(), name), { recursive: true, force: true }) } catch { /* sigue en uso */ }
   }
 }
 
