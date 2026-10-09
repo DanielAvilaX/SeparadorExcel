@@ -2,6 +2,9 @@
 
 Guía para **usar** la aplicación: qué hacer paso a paso, y qué hacer si algo sale mal.
 
+> Dentro de la app, el botón **Ayuda** del panel lateral tiene esta misma guía más detallada, con
+> capturas de pantalla que señalan cada botón, un índice y un buscador.
+
 ---
 
 ## 1. ¿Qué hace esta aplicación?

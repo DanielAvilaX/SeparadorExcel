@@ -13,6 +13,7 @@ import PlantillaView from './views/PlantillaView'
 import ConfiguracionView from './views/ConfiguracionView'
 import SeparacionesView from './views/SeparacionesView'
 import ExpressView from './views/ExpressView'
+import AyudaView from './views/AyudaView'
 import { supabase, isConfigured } from './lib/supabase'
 import { confirmDialog } from './lib/confirm'
 import { checkForUpdate } from './lib/appVersion'
@@ -45,6 +46,7 @@ export default function App() {
   const [proc, setProc] = useState({
     typeKey: 'PACOM', wb: null, file: null, prefix: '', selectedCols: null, selectedGroups: null, templateId: null,
   })
+  const [helpSection, setHelpSection] = useState('bienvenida')
   const [express, setExpress] = useState({ wb: null, file: null, analysis: null, definition: null, selected: null, prefix: '' })
 
   // Configuraciones de separación del usuario (las 3 de fábrica + las propias). Mientras cargan,
@@ -195,6 +197,7 @@ export default function App() {
               {view === 'proveedores' && <ProveedoresView configs={configsState.configs} />}
               {view === 'cc' && <CcView configs={configsState.configs} />}
               {view === 'plantilla' && <PlantillaView />}
+              {view === 'ayuda' && <AyudaView sectionId={helpSection} onSectionChange={setHelpSection} />}
               {view === 'configuracion' && (
                 <ConfiguracionView
                   userEmail={userEmail}

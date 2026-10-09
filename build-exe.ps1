@@ -85,11 +85,11 @@ $pkgFolder = Join-Path $root "$outDir\$appName-win32-x64"
 $asarPath = Join-Path $pkgFolder "resources\app.asar"
 $asarMb = [math]::Round((Get-Item $asarPath).Length / 1MB, 1)
 Write-Host "  app.asar: $asarMb MB"
-# El video del login (dist/assets/login-bg-*.mp4, ~3.8MB) ya es parte legitima del bundle,
-# asi que el umbral considera eso -- si vuelve a dispararse, sospecha de node_modules colado
-# (el problema original que este chequeo detecto) antes que del video.
-if ($asarMb -gt 9) {
-    Write-Host "  Aviso: app.asar se ve mas grande de lo esperado (>9MB) -- revisa a mano si se colo algo." -ForegroundColor Yellow
+# El video del login (~3.8MB) y las capturas de la Ayuda (~3MB) ya son parte legitima del
+# bundle, asi que el umbral considera eso -- si vuelve a dispararse, sospecha de node_modules
+# colado (el problema original que este chequeo detecto) antes que de esos archivos.
+if ($asarMb -gt 13) {
+    Write-Host "  Aviso: app.asar se ve mas grande de lo esperado (>13MB) -- revisa a mano si se colo algo." -ForegroundColor Yellow
 }
 
 if ($pdfOk) {

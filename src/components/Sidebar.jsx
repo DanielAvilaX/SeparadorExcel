@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileSpreadsheet, Zap, SlidersHorizontal, Users, Mail, FileText, Settings, LogOut, ChevronRight } from 'lucide-react'
+import { FileSpreadsheet, Zap, SlidersHorizontal, Users, Mail, FileText, Settings, CircleHelp, LogOut, ChevronRight } from 'lucide-react'
 import logo from '../../assets/logo-separador.png'
 import { CURRENT_VERSION } from '../lib/appVersion'
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { key: 'cc', label: 'Copias (CC)', icon: Mail },
   { key: 'plantilla', label: 'Plantilla', icon: FileText },
   { key: 'configuracion', label: 'Configuración', icon: Settings },
+  { key: 'ayuda', label: 'Ayuda', icon: CircleHelp },
 ]
 
 // Envuelve una etiqueta para que aparezca/desaparezca con una animación de ancho+opacidad en vez
